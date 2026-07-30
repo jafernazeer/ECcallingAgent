@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { createClient } from "@supabase/supabase-js";
 import {
   Activity,
   BarChart3,
@@ -39,11 +40,64 @@ const NAV_ITEMS = [
 
 const VAPI_PUBLIC_KEY = "ee1d4795-4453-4456-ba50-c42a3404e1c3";
 const VAPI_ASSISTANT_ID = "429bb390-be3c-4b1e-bc3a-2a717917725c";
+const EC_AGENT_SCRIPT = `
+You are the EthikCorp EC Calling Agent for inbound customer calls.
+
+Conversation style:
+- Be warm, calm, and client friendly.
+- Keep every reply short: 1 to 2 sentences, under 35 words unless the caller asks for details.
+- Ask one question at a time.
+- Do not give long explanations, lists, or sales pitches during intake.
+- If the caller interrupts or sounds rushed, acknowledge and continue with the next essential question.
+
+Call goal:
+- Understand the caller's requirement and capture a complete lead for the EthikCorp dashboard.
+- Collect these fields naturally: full name, company or organization if available, location or emirate, phone number, email address, requirement, preferred follow-up time, and urgency.
+- If the browser or phone system already provides the calling number, still confirm the best callback number briefly.
+- If the caller does not want to share email or company, mark it as not provided and continue.
+
+Recommended flow:
+1. Greet: "Hello, this is EthikCorp. How can I help you today?"
+2. After the caller explains, ask: "May I have your full name?"
+3. Ask: "Which company or organization are you calling from?"
+4. Ask: "Which emirate or country are you based in?"
+5. Ask: "What is the best callback number?"
+6. Ask: "May I have your email for follow-up?"
+7. Ask one concise clarification about the requirement if needed.
+8. Ask: "When would you prefer our team to follow up?"
+9. Confirm briefly: name, requirement, location, phone, email, and follow-up time.
+10. Close politely: "Thank you. I will pass this to the EthikCorp team for follow-up."
+
+EthikCorp context:
+- EthikCorp helps UAE organizations with business transformation, corporate training, leadership development, organizational culture and change management, process improvement, digital transformation, and gamification or AR/VR solutions.
+- For pricing, proposals, availability, and detailed consulting advice, collect the lead details and say the EthikCorp team will follow up.
+- Do not promise exact pricing, delivery timelines, or guarantees during the call.
+
+Lead capture rules:
+- Repeat captured details only at the end unless clarification is needed.
+- If a value is unclear, ask a short confirmation question.
+- Always keep the call moving toward a complete lead record.
+`.trim();
+const EC_AGENT_ASSISTANT_OVERRIDES = {
+  firstMessage: "Hello, this is EthikCorp. How can I help you today?",
+  firstMessageMode: "assistant-speaks-first",
+  model: {
+    messages: [
+      {
+        role: "system",
+        content: EC_AGENT_SCRIPT,
+      },
+    ],
+  },
+};
+const SUPABASE_BROWSER_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_BROWSER_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const CALL_HISTORY_KEY = "ethikcorp.ec.callHistory.v1";
 const MAX_CALL_RECORDS = 80;
 const MAX_VISIBLE_CALLS = 3;
 const DEMO_CALL_ID_PATTERN = /^c-10\d+$/;
 const WORKFLOW_STATUSES = ["Open", "Follow up required", "Closed"];
+let dashboardSupabaseClient = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -156,6 +210,40 @@ function matchesQuery(values, query) {
     .includes(normalizedQuery);
 }
 
+function getDashboardSupabaseClient() {
+  if (!SUPABASE_BROWSER_URL || !SUPABASE_BROWSER_ANON_KEY) return null;
+  if (!dashboardSupabaseClient) {
+    dashboardSupabaseClient = createClient(SUPABASE_BROWSER_URL, SUPABASE_BROWSER_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return dashboardSupabaseClient;
+}
+
+async function fetchServerCallRecords() {
+  const response = await fetch("/api/call-records");
+  if (!response.ok) throw new Error("Could not load live call records.");
+  return response.json();
+}
+
+function persistCallEvent(event) {
+  if (!event?.sessionId) return;
+  fetch("/api/call-events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  }).catch(() => {});
+}
+
+function persistWorkflowStatus(recordId, workflowStatus) {
+  if (!recordId) return;
+  fetch(`/api/calls/${encodeURIComponent(recordId)}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ workflowStatus }),
+  }).catch(() => {});
+}
+
 function loadCallRecords() {
   try {
     const stored = JSON.parse(window.localStorage.getItem(CALL_HISTORY_KEY) || "[]");
@@ -188,11 +276,45 @@ function transcriptText(record) {
     .join(" ");
 }
 
-function firstCustomerRequirement(record) {
-  const customerLine = (record.transcript || [])
+function customerEntries(record) {
+  return (record.transcript || [])
     .map(normalizeTranscriptEntry)
-    .find((entry) => entry.speaker === "Customer" && entry.text.length > 18 && !/@/.test(entry.text));
-  return customerLine?.text || record.summary || "Live EC Calling Agent inquiry";
+    .filter((entry) => entry.speaker === "Customer" && entry.text.trim());
+}
+
+function answerAfterAgentPrompt(entries, promptPattern) {
+  const promptIndex = entries.findIndex((entry) => entry.speaker === "AI Agent" && promptPattern.test(entry.text));
+  return promptIndex >= 0
+    ? entries.slice(promptIndex + 1).find((entry) => entry.speaker === "Customer" && entry.text.trim())
+    : null;
+}
+
+function cleanRequirement(value) {
+  if (!value) return "";
+  return value
+    .replace(/\b(?:my name is|this is|i am|i'm|name is|call me)\b[^,.]*[,.]?/i, "")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "")
+    .replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[,.-]+|[,.-]+$/g, "");
+}
+
+function firstCustomerRequirement(record) {
+  const entries = (record.transcript || []).map(normalizeTranscriptEntry);
+  const promptedAnswer = answerAfterAgentPrompt(entries, /\b(how can i help|what.*requirement|what.*need|looking for|interested in|service|support|clarification)\b/i);
+  const candidates = [promptedAnswer, ...customerEntries(record)].filter(Boolean);
+
+  for (const entry of candidates) {
+    const explicitMatch = entry.text.match(/\b(?:i need|we need|looking for|interested in|want|require|calling about|need help with|enquire about|inquire about)\s+(.{8,220})/i);
+    const explicitRequirement = cleanRequirement(explicitMatch?.[1]);
+    if (explicitRequirement.length > 8) return explicitRequirement;
+
+    const requirement = cleanRequirement(entry.text);
+    if (requirement.length > 18 && !/@/.test(entry.text)) return requirement;
+  }
+
+  return record.summary || "Live EC Calling Agent inquiry";
 }
 
 function cleanStatedName(value) {
@@ -209,15 +331,8 @@ function cleanStatedName(value) {
 
 function extractCustomerName(record) {
   const entries = (record.transcript || []).map(normalizeTranscriptEntry);
-  const customerEntries = entries.filter((entry) => entry.speaker === "Customer");
-  const promptIndex = entries.findIndex((entry) => (
-    entry.speaker === "AI Agent"
-    && /\b(name|who am i speaking with|may i know|can i have your name)\b/i.test(entry.text)
-  ));
-  const afterPrompt = promptIndex >= 0
-    ? entries.slice(promptIndex + 1).find((entry) => entry.speaker === "Customer")
-    : null;
-  const candidateLines = [afterPrompt, ...customerEntries].filter(Boolean);
+  const afterPrompt = answerAfterAgentPrompt(entries, /\b(name|who am i speaking with|may i know|can i have your name|full name)\b/i);
+  const candidateLines = [afterPrompt, ...customerEntries(record)].filter(Boolean);
 
   for (const entry of candidateLines) {
     const explicitMatch = entry.text.match(/\b(?:my name is|this is|i am|i'm|it's|its|name is|call me)\s+([a-zA-Z .'-]{2,80})/i);
@@ -233,6 +348,15 @@ function extractCustomerName(record) {
   return "";
 }
 
+function extractLeadPlace(record, body) {
+  const entries = (record.transcript || []).map(normalizeTranscriptEntry);
+  const afterPrompt = answerAfterAgentPrompt(entries, /\b(location|where are you based|which emirate|which country|based in)\b/i);
+  const locationText = [afterPrompt?.text, body].filter(Boolean).join(" ");
+  const explicitMatch = locationText.match(/\b(?:based in|from|in|located in)\s+(Dubai|Abu Dhabi|Sharjah|Ajman|Ras Al Khaimah|Fujairah|Umm Al Quwain|UAE|Kuwait|Saudi Arabia|Qatar|Oman|Bahrain)\b/i);
+  const placeMatch = locationText.match(/\b(Dubai|Abu Dhabi|Sharjah|Ajman|Ras Al Khaimah|Fujairah|Umm Al Quwain|UAE|United Arab Emirates|Kuwait|Saudi Arabia|Qatar|Oman|Bahrain)\b/i);
+  return record.lead?.place || explicitMatch?.[1] || placeMatch?.[1] || "Not captured";
+}
+
 function extractLeadDetails(record) {
   const body = transcriptText(record);
   const lowerBody = body.toLowerCase();
@@ -240,8 +364,7 @@ function extractLeadDetails(record) {
   const phone = body.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.replace(/\s+/g, " ") || record.phone || "Browser call";
   const statedName = extractCustomerName(record);
   const name = statedName || record.lead?.name || record.name || `Website Caller ${record.id.slice(-4).toUpperCase()}`;
-  const placeMatch = body.match(/\b(Dubai|Abu Dhabi|Sharjah|Ajman|Ras Al Khaimah|Fujairah|Umm Al Quwain|Kuwait|Saudi Arabia|Qatar|Oman|Bahrain)\b/i);
-  const place = record.lead?.place || (placeMatch ? placeMatch[1] : "UAE");
+  const place = extractLeadPlace(record, body);
   const requirement = record.lead?.requirement || firstCustomerRequirement(record);
   const status = lowerBody.includes("training")
     ? "Training"
@@ -508,6 +631,7 @@ function App() {
     setCallRecords((currentRecords) => applyCallEvent(currentRecords, event));
     if (event?.sessionId) setSelectedConversationId(event.sessionId);
     if (event?.type === "call-created") setNotificationCount((count) => count + 1);
+    persistCallEvent(event);
   });
   const liveMetrics = useMemo(() => buildMetrics(callRecords), [callRecords]);
   const actionQueue = useMemo(() => buildActionQueue(callRecords), [callRecords]);
@@ -531,7 +655,48 @@ function App() {
     setCallRecords((currentRecords) => currentRecords.map((record) => (
       record.id === recordId ? { ...record, workflowStatus } : record
     )));
+    persistWorkflowStatus(recordId, workflowStatus);
   }
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshRecords() {
+      try {
+        const data = await fetchServerCallRecords();
+        if (!active || data.persistence !== "supabase" || !Array.isArray(data.records)) return;
+        setCallRecords(data.records);
+        setSelectedConversationId((currentId) => (
+          data.records.some((record) => record.id === currentId) ? currentId : data.records[0]?.id || ""
+        ));
+      } catch {
+        // Local dashboard mode continues to use localStorage when no backend database is configured.
+      }
+    }
+
+    refreshRecords();
+
+    const realtimeClient = getDashboardSupabaseClient();
+    if (!realtimeClient) {
+      const timer = window.setInterval(refreshRecords, 5000);
+      return () => {
+        active = false;
+        window.clearInterval(timer);
+      };
+    }
+
+    const channel = realtimeClient
+      .channel("ethikcorp-live-dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "calls" }, refreshRecords)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transcripts" }, refreshRecords)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, refreshRecords)
+      .subscribe();
+
+    return () => {
+      active = false;
+      realtimeClient.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(callRecords));
@@ -696,7 +861,7 @@ function useVapiCall(onCallEvent) {
 
     try {
       const vapi = await getVapiClient();
-      await vapi.start(VAPI_ASSISTANT_ID);
+      await vapi.start(VAPI_ASSISTANT_ID, EC_AGENT_ASSISTANT_OVERRIDES);
       setMessage("Connecting to EC Calling Agent...");
     } catch (error) {
       setStatus("error");
