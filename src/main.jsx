@@ -117,6 +117,7 @@ const MAX_CALL_RECORDS = 80;
 const MAX_VISIBLE_CALLS = 3;
 const DEMO_CALL_ID_PATTERN = /^c-10\d+$/;
 const WORKFLOW_STATUSES = ["Open", "Follow up required", "Closed"];
+const APP_MODE = import.meta.env.VITE_APP_MODE || "";
 let dashboardSupabaseClient = null;
 
 function nowIso() {
@@ -283,15 +284,7 @@ function loadEmailUpdates() {
 }
 
 function loadCallRecords() {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem(CALL_HISTORY_KEY) || "[]");
-    if (!Array.isArray(stored)) return [];
-    return stored
-      .filter((record) => record?.source !== "Dashboard demo" && !DEMO_CALL_ID_PATTERN.test(record?.id || ""))
-      .slice(0, MAX_CALL_RECORDS);
-  } catch {
-    return [];
-  }
+  return readStoredCallRecords();
 }
 
 function normalizeTranscriptEntry(entry) {
@@ -420,7 +413,7 @@ function extractLeadDetails(record) {
     + (requirement.length > 35 ? 10 : 0)
     + Math.min(14, (record.transcript || []).length * 2));
 
-  return { name, place, phone, email, requirement, source: "Voice", score, status };
+  return { name, place, phone, email, requirement, source: record.source || "Voice", score, status };
 }
 
 function summarizeCall(record) {
@@ -699,7 +692,7 @@ function applyCallEvent(records, event) {
     endedAt: null,
     status: "connecting",
     channel: "Voice",
-    source: "Phone widget",
+    source: event.source || "Phone widget",
     agentJoined: false,
     workflowStatus: "Open",
     transcript: [],
@@ -763,6 +756,29 @@ function extractTranscriptFromVapiMessage(message) {
 }
 
 function App() {
+  return isAgentLandingMode() ? <AgentLandingApp /> : <DashboardApp />;
+}
+
+function isAgentLandingMode() {
+  const path = window.location.pathname.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  return APP_MODE === "agent" || path.startsWith("/agent") || params.get("mode") === "agent";
+}
+
+function readStoredCallRecords() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    return Array.isArray(stored)
+      ? stored
+        .filter((record) => record?.source !== "Dashboard demo" && !DEMO_CALL_ID_PATTERN.test(record?.id || ""))
+        .slice(0, MAX_CALL_RECORDS)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function DashboardApp() {
   const [activePage, setActivePage] = useState("overview");
   const [callRecords, setCallRecords] = useState(loadCallRecords);
   const [selectedConversationId, setSelectedConversationId] = useState(() => callRecords[0]?.id || "");
@@ -848,6 +864,20 @@ function App() {
       active = false;
       realtimeClient.removeChannel(channel);
     };
+  }, []);
+
+  useEffect(() => {
+    function syncStoredRecords(event) {
+      if (event.key !== CALL_HISTORY_KEY) return;
+      const records = readStoredCallRecords();
+      setCallRecords(records);
+      setSelectedConversationId((currentId) => (
+        records.some((record) => record.id === currentId) ? currentId : records[0]?.id || ""
+      ));
+    }
+
+    window.addEventListener("storage", syncStoredRecords);
+    return () => window.removeEventListener("storage", syncStoredRecords);
   }, []);
 
   useEffect(() => {
@@ -954,6 +984,7 @@ function useVapiCall(onCallEvent) {
   const vapiRef = useRef(null);
   const audioRef = useRef(null);
   const activeCallIdRef = useRef(null);
+  const activeSourceRef = useRef("Phone widget");
   const onCallEventRef = useRef(onCallEvent);
 
   useEffect(() => {
@@ -990,7 +1021,7 @@ function useVapiCall(onCallEvent) {
       setDispatchAccepted(true);
       setParticipantCount(2);
       setMessage("EthikCorp Agent is live. Speak now.");
-      emitCallEvent({ type: "call-start", sessionId: activeCallIdRef.current, startedAt: nowIso() });
+      emitCallEvent({ type: "call-start", sessionId: activeCallIdRef.current, source: activeSourceRef.current, startedAt: nowIso() });
     });
 
     vapi.on("call-end", () => {
@@ -999,7 +1030,7 @@ function useVapiCall(onCallEvent) {
       setDispatchAccepted(false);
       setParticipantCount(0);
       setMessage("Call disconnected. Ready for another test.");
-      emitCallEvent({ type: "call-end", sessionId: activeCallIdRef.current, endedAt: nowIso() });
+      emitCallEvent({ type: "call-end", sessionId: activeCallIdRef.current, source: activeSourceRef.current, endedAt: nowIso() });
       activeCallIdRef.current = null;
     });
 
@@ -1026,6 +1057,7 @@ function useVapiCall(onCallEvent) {
       emitCallEvent({
         type: "call-error",
         sessionId: activeCallIdRef.current,
+        source: activeSourceRef.current,
         endedAt: nowIso(),
         message: event?.error || "The EthikCorp Agent call could not start.",
       });
@@ -1038,7 +1070,7 @@ function useVapiCall(onCallEvent) {
       setDispatchAccepted(false);
       setParticipantCount(0);
       setMessage(errorMessage);
-      emitCallEvent({ type: "call-error", sessionId: activeCallIdRef.current, endedAt: nowIso(), message: errorMessage });
+      emitCallEvent({ type: "call-error", sessionId: activeCallIdRef.current, source: activeSourceRef.current, endedAt: nowIso(), message: errorMessage });
     });
 
     vapi.on("message", (event) => {
@@ -1047,6 +1079,7 @@ function useVapiCall(onCallEvent) {
       emitCallEvent({
         type: "transcript",
         sessionId: activeCallIdRef.current,
+        source: activeSourceRef.current,
         at: nowIso(),
         ...transcript,
       });
@@ -1056,20 +1089,27 @@ function useVapiCall(onCallEvent) {
     return vapi;
   }
 
-  async function startCall() {
+  async function startCall(source = "Phone widget") {
     if (status === "connecting" || status === "connected") return;
     const sessionId = `ec-${Date.now()}`;
     activeCallIdRef.current = sessionId;
+    activeSourceRef.current = source;
     setStatus("connecting");
     setMessage("Requesting microphone access...");
     setAgentJoined(false);
     setDispatchAccepted(false);
     setParticipantCount(0);
-    emitCallEvent({ type: "call-created", sessionId, startedAt: nowIso() });
+    emitCallEvent({ type: "call-created", sessionId, source, startedAt: nowIso() });
 
     try {
       const vapi = await getVapiClient();
-      await vapi.start(VAPI_ASSISTANT_ID, EC_AGENT_ASSISTANT_OVERRIDES);
+      await vapi.start(VAPI_ASSISTANT_ID, {
+        ...EC_AGENT_ASSISTANT_OVERRIDES,
+        metadata: {
+          ...EC_AGENT_ASSISTANT_OVERRIDES.metadata,
+          callSource: source,
+        },
+      });
       setMessage("Connecting to EthikCorp Agent...");
     } catch (error) {
       setStatus("error");
@@ -1077,7 +1117,7 @@ function useVapiCall(onCallEvent) {
       setDispatchAccepted(false);
       setParticipantCount(0);
       setMessage(getErrorMessage(error));
-      emitCallEvent({ type: "call-error", sessionId, endedAt: nowIso(), message: getErrorMessage(error) });
+      emitCallEvent({ type: "call-error", sessionId, source, endedAt: nowIso(), message: getErrorMessage(error) });
     }
   }
 
@@ -1089,11 +1129,97 @@ function useVapiCall(onCallEvent) {
     setParticipantCount(0);
     setAgentJoined(false);
     setDispatchAccepted(false);
-    emitCallEvent({ type: "call-end", sessionId, endedAt: nowIso() });
+    emitCallEvent({ type: "call-end", sessionId, source: activeSourceRef.current, endedAt: nowIso() });
     activeCallIdRef.current = null;
   }
 
   return { status, message, roomName: "", participantCount, agentJoined, dispatchAccepted, startCall, endCall, audioRef };
+}
+
+function AgentLandingApp() {
+  const [callRecords, setCallRecords] = useState(loadCallRecords);
+  const call = useVapiCall((event) => {
+    const landingEvent = { ...event, source: event.source || "Client landing page" };
+    setCallRecords((currentRecords) => applyCallEvent(currentRecords, landingEvent));
+    persistCallEvent(landingEvent);
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(callRecords));
+  }, [callRecords]);
+
+  useEffect(() => {
+    function syncStoredRecords(event) {
+      if (event.key === CALL_HISTORY_KEY) setCallRecords(readStoredCallRecords());
+    }
+
+    window.addEventListener("storage", syncStoredRecords);
+    return () => window.removeEventListener("storage", syncStoredRecords);
+  }, []);
+
+  return (
+    <main className="agent-landing">
+      <section className="agent-landing-shell">
+        <header className="agent-landing-header">
+          <img src="/brand/ethikcorp-logo-blue.png" alt="EthikCorp" />
+          <span>Agent test portal</span>
+        </header>
+        <div className="agent-landing-content">
+          <article className="agent-landing-copy">
+            <span className="agent-kicker">EthikCorp Agent</span>
+            <h1>Test the EC calling agent live</h1>
+            <p>
+              Start a browser call, allow microphone access, and speak naturally. Captured details from the call will flow into the EthikCorp dashboard.
+            </p>
+            <div className="agent-landing-status">
+              <span className={call.status === "connected" ? "live" : ""} />
+              {call.status === "connected"
+                ? "Agent is live"
+                : call.status === "connecting"
+                  ? "Connecting"
+                  : "Ready to test"}
+            </div>
+          </article>
+          <AgentLandingPhone call={call} />
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function AgentLandingPhone({ call }) {
+  const connected = call.status === "connected";
+  const connecting = call.status === "connecting";
+
+  return (
+    <article className="agent-landing-phone" aria-label="EthikCorp Agent test phone">
+      <div className="agent-phone-speaker" />
+      <div className="agent-phone-screen">
+        <header>
+          <span>EthikCorp Agent</span>
+          <small>{connected ? "Live call active" : connecting ? "Connecting" : "Ready to test"}</small>
+        </header>
+        <div className={`agent-phone-orb ${connected ? "connected" : ""}`}>
+          {connected ? <Mic size={44} /> : <Phone size={44} />}
+        </div>
+        <div className="agent-phone-readout">
+          <strong>{connected ? "Speak now" : connecting ? "Starting call" : "Click Start Call"}</strong>
+          <p>{call.message}</p>
+        </div>
+        <div ref={call.audioRef} className="remote-audio" aria-live="polite" />
+        <div className="agent-phone-actions">
+          <button type="button" disabled={connecting || connected} onClick={() => call.startCall("Client landing page")}>
+            <PhoneCall size={20} />
+            Start Call
+          </button>
+          <button type="button" disabled={!connected && !connecting} onClick={call.endCall}>
+            <PhoneOff size={20} />
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function Sidebar({ activePage, setActivePage, navItems }) {

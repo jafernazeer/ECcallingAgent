@@ -20,6 +20,22 @@ npm run dev
 
 Open `http://localhost:5173`.
 
+## Client Agent Landing Page
+
+The app includes a call-only client testing page with no dashboard analytics:
+
+```text
+http://localhost:5173/agent
+```
+
+For the dedicated `ECcallingAgent` deployment, set this environment variable so the root URL opens the landing page directly:
+
+```bash
+VITE_APP_MODE=agent
+```
+
+Calls from this landing page are tagged as `Client landing page` and use the same Vapi assistant, webhook, Supabase tables, and local call history as the dashboard. With Supabase configured in both deployments, landing-page calls and captured lead details appear in the EthikCorp dashboard automatically.
+
 ## Supabase Live Data Setup
 
 1. Create a Supabase project.
@@ -28,6 +44,7 @@ Open `http://localhost:5173`.
 4. Add:
 
 ```bash
+VITE_APP_MODE=dashboard
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project-ref.supabase.co
