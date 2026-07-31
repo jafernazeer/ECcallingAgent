@@ -1,15 +1,18 @@
-# EthikCorpVoiceAgent
+# ECcallingAgent
 
-Live dashboard for the EthikCorp Agent.
+Dedicated EthikCorp Agent test portal for client-facing browser calls.
 
-## Features
+This repo is intentionally limited to the public call-testing experience for `ethikcorp.aqionlabs.com`. It does not include dashboard analytics, lead tables, conversation review screens, email updates, or admin controls.
 
-- Home dashboard with voice-agent analytics.
-- Conversation timeline with call transcript examples.
-- Lead management table for customer details collected from calls.
-- Email Updates tab for sending answered-call summaries and captured lead details to selected email addresses.
-- Test Call console and floating phone widget connected to the EthikCorp Agent via the Vapi browser SDK.
-- Optional Supabase persistence for live calls, transcripts, analytics, and captured leads.
+## What It Does
+
+- Shows only the EthikCorp Agent test portal.
+- Starts a live browser call through the Vapi browser SDK.
+- Requests microphone access from the visitor.
+- Sends browser call lifecycle events and transcripts to the backend.
+- Supports Vapi Server URL webhooks.
+- Supports the Vapi `submit_lead` tool endpoint.
+- Stores calls, transcripts, and captured leads in the same Supabase tables used by the EthikCorp dashboard.
 
 ## Local Setup
 
@@ -18,95 +21,84 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open:
 
-## Client Agent Landing Page
+```text
+http://localhost:5173/
+```
 
-The app includes a call-only client testing page with no dashboard analytics:
+The `/agent` path also works as an alias:
 
 ```text
 http://localhost:5173/agent
 ```
 
-For the dedicated `ECcallingAgent` deployment, set this environment variable so the root URL opens the landing page directly:
+## Hostinger Deployment
 
-```bash
-VITE_APP_MODE=agent
+Deploy this repo to:
+
+```text
+https://ethikcorp.aqionlabs.com
 ```
 
-Calls from this landing page are tagged as `Client landing page` and use the same Vapi assistant, webhook, Supabase tables, and local call history as the dashboard. With Supabase configured in both deployments, landing-page calls and captured lead details appear in the EthikCorp dashboard automatically.
-
-## Supabase Live Data Setup
-
-1. Create a Supabase project.
-2. Run the SQL in `supabase/schema.sql` from the Supabase SQL editor.
-3. Copy `.env.example` to `.env.local`.
-4. Add:
+Use:
 
 ```bash
-VITE_APP_MODE=dashboard
+npm ci
+npm run build
+```
+
+Build output:
+
+```text
+dist/
+```
+
+If Hostinger runs the Node server, use:
+
+```bash
+npm run dev
+```
+
+If Hostinger serves only static files, deploy the `dist/` folder, but backend data capture endpoints will need to run somewhere else.
+
+## Environment Variables
+
+For full dashboard sync, configure these in Hostinger:
+
+```bash
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-VAPI_PRIVATE_API_KEY=your-vapi-private-api-key
-VAPI_ASSISTANT_ID=da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76
-VAPI_AGENT_NAME=EthikCorp Agent
-VAPI_ORG_ID=7a20e8e2-726e-485e-8348-09fb9ef8e729
-VAPI_VOICE_PROVIDER=cartesia
-VAPI_VOICE_MODEL=sonic-3.5
-VAPI_VOICE_ID=638efaaa-4d0c-442e-b701-3fae16aad012
 VAPI_WEBHOOK_SECRET=your-vapi-webhook-secret
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=notifications@your-domain.com
-SMTP_PASS=your-smtp-password-or-app-password
-EMAIL_FROM="EthikCorp Agent <notifications@your-domain.com>"
 ```
 
-The browser uses only the `VITE_` values for Realtime updates. The Express API uses `SUPABASE_SERVICE_ROLE_KEY` to store calls, transcripts, and leads securely on the server side.
-
-## Vapi Latest Agent Update
-
-The Diagnostics page includes a **Get Latest Vapi Update** button. To fetch the latest assistant settings and recent calls from Vapi, add the private server key:
-
-```bash
-VAPI_PRIVATE_API_KEY=your-vapi-private-api-key
-VAPI_ASSISTANT_ID=da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76
-```
-
-The active browser-call assistant is:
+The Vapi public key and assistant ID are configured in `src/main.jsx`:
 
 ```text
-Name: EthikCorp Agent
+Public key: f80cea3b-d773-4f2c-88a8-8d7c87cd57ee
 Assistant ID: da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76
-Org ID: 7a20e8e2-726e-485e-8348-09fb9ef8e729
+Assistant name: EthikCorp Agent
 Voice provider: cartesia
 Voice model: sonic-3.5
 Voice ID: 638efaaa-4d0c-442e-b701-3fae16aad012
 ```
 
-Do not expose the private key in browser code or commit it to GitHub. It must stay in `.env.local` locally or the deployment provider's server environment variables.
+Do not commit `.env.local` or real server-side keys.
 
-## Vapi Server URL
+## Vapi Endpoints
 
-After deploying the Node/Express backend, configure the EthikCorp Agent server URL in Vapi:
+Set the Vapi assistant Server URL to:
 
 ```text
-https://your-domain.com/api/vapi/webhook
+https://ethikcorp.aqionlabs.com/api/vapi/webhook
 ```
 
-For the structured Vapi **Lead Capture Tool**, use this Server URL:
+For the structured Vapi Lead Capture Tool, set the tool Server URL to:
 
 ```text
-https://your-domain.com/api/vapi/lead-tool
-```
-
-For local testing, Vapi cannot call `localhost` directly from the cloud. Use a public tunnel such as ngrok or Cloudflare Tunnel, then set the tool Server URL to:
-
-```text
-https://your-public-tunnel-url/api/vapi/lead-tool
+https://ethikcorp.aqionlabs.com/api/vapi/lead-tool
 ```
 
 Use this Vapi custom tool schema:
@@ -133,12 +125,6 @@ Use this Vapi custom tool schema:
 }
 ```
 
-The local phone widget also posts browser call events to:
-
-```text
-/api/call-events
-```
-
 If `VAPI_WEBHOOK_SECRET` is configured, send it from Vapi as either:
 
 ```text
@@ -151,35 +137,18 @@ or:
 x-vapi-secret: your-vapi-webhook-secret
 ```
 
-If Supabase variables are not configured, the dashboard keeps using browser localStorage as a fallback.
+## Supabase
 
-## Email Updates
+Run `supabase/schema.sql` in the Supabase SQL editor. Use the same Supabase project and tables as the EthikCorp dashboard so calls from this portal appear in the dashboard automatically.
 
-The Email Updates tab can generate a full lead digest or a selected answered-call summary from the live dashboard data. To send real emails from the deployed backend, add SMTP credentials:
+Required tables:
 
-```bash
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=notifications@your-domain.com
-SMTP_PASS=your-smtp-password-or-app-password
-EMAIL_FROM="EthikCorp Agent <notifications@your-domain.com>"
-```
+- `calls`
+- `transcripts`
+- `leads`
 
-When those variables are missing, the tab still builds the message preview and stores recipient emails locally, but the server will not send external email messages.
-
-For live delivery you need:
-
-- A real sending mailbox or SMTP provider.
-- SMTP host, port, username, and password or app password.
-- A verified sender address in `EMAIL_FROM`.
-- Domain email records configured for deliverability: SPF, DKIM, and ideally DMARC.
-- Recipient addresses entered in the Email Updates tab.
-
-## Build
+## Build Check
 
 ```bash
 npm run build
 ```
-
-The call test uses a browser public key and assistant ID in `src/main.jsx`; Supabase credentials are required only when persistent live data is enabled.

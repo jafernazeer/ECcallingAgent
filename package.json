@@ -1,5 +1,5 @@
 {
-  "name": "ethikcorp-voice-agent",
+  "name": "ec-calling-agent",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -15,11 +15,8 @@
     "@vitejs/plugin-react": "^5.1.1",
     "express": "^5.2.1",
     "lucide-react": "^0.561.0",
-    "nodemailer": "^9.0.3",
-    "playwright": "^1.57.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "three": "^0.182.0",
     "vite": "^7.3.0"
   }
 }
