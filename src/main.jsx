@@ -24,6 +24,7 @@ import {
   PhoneMissed,
   PhoneOff,
   Search,
+  Send,
   UserRound,
   UsersRound,
   X,
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", hint: "Voice analytics", icon: Grid2X2 },
   { id: "conversations", label: "Conversation", hint: "Transcripts", icon: Headphones },
   { id: "leads", label: "Lead Management", hint: "Captured clients", icon: UsersRound },
+  { id: "email", label: "Email Updates", hint: "Call summaries", icon: Mail },
   { id: "test", label: "Diagnostics", hint: "EC agent QA", icon: PhoneCall },
 ];
 
@@ -82,6 +84,8 @@ const EC_AGENT_ASSISTANT_OVERRIDES = {
   firstMessage: "Hello, this is EthikCorp. How can I help you today?",
   firstMessageMode: "assistant-speaks-first",
   model: {
+    provider: "openai",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
@@ -93,6 +97,8 @@ const EC_AGENT_ASSISTANT_OVERRIDES = {
 const SUPABASE_BROWSER_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_BROWSER_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const CALL_HISTORY_KEY = "ethikcorp.ec.callHistory.v1";
+const EMAIL_RECIPIENTS_KEY = "ethikcorp.ec.emailRecipients.v1";
+const EMAIL_UPDATES_KEY = "ethikcorp.ec.emailUpdates.v1";
 const MAX_CALL_RECORDS = 80;
 const MAX_VISIBLE_CALLS = 3;
 const DEMO_CALL_ID_PATTERN = /^c-10\d+$/;
@@ -242,6 +248,24 @@ function persistWorkflowStatus(recordId, workflowStatus) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ workflowStatus }),
   }).catch(() => {});
+}
+
+function loadEmailRecipients() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(EMAIL_RECIPIENTS_KEY) || "[]");
+    return Array.isArray(stored) ? stored.join("\n") : "";
+  } catch {
+    return "";
+  }
+}
+
+function loadEmailUpdates() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(EMAIL_UPDATES_KEY) || "[]");
+    return Array.isArray(stored) ? stored.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
 }
 
 function loadCallRecords() {
@@ -515,6 +539,111 @@ function buildReportFilename(prefix, fromDate, toDate, extension) {
   return `${prefix}-${range}.${extension}`;
 }
 
+function parseEmailRecipients(value) {
+  return value
+    .split(/[\n,;]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item))
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function answeredCallRecords(records) {
+  return records.filter((record) => (
+    record.status === "ended"
+    && (record.agentJoined || (record.transcript || []).length > 0)
+  ));
+}
+
+function leadLines(leads, limit = 8) {
+  if (!leads.length) return ["No lead details captured yet."];
+  return leads.slice(0, limit).map((lead, index) => (
+    `${index + 1}. ${lead.name} | ${lead.phone} | ${lead.email} | ${lead.place} | ${lead.status} | ${lead.requirement}`
+  ));
+}
+
+function buildSingleEmailSummary(record) {
+  if (!record) {
+    return "EthikCorp EC Calling Agent update\n\nNo answered call is selected yet.";
+  }
+
+  const lead = extractLeadDetails(record);
+  return [
+    "EthikCorp EC Calling Agent update",
+    "",
+    `Call date: ${formatDisplayDate(record.startedAt)}`,
+    `Caller: ${lead.name}`,
+    `Phone: ${lead.phone}`,
+    `Email: ${lead.email}`,
+    `Location: ${lead.place}`,
+    `Status: ${getWorkflowStatus(record)}`,
+    "",
+    "Requirement:",
+    lead.requirement,
+    "",
+    "Call summary:",
+    record.summary || summarizeCall(record),
+    "",
+    "Recommended next step:",
+    getWorkflowStatus(record) === "Closed" ? "No open follow-up required." : "EthikCorp team should review and follow up with the caller.",
+  ].join("\n");
+}
+
+function buildDigestEmailSummary(records, leads) {
+  const answered = answeredCallRecords(records);
+  const latestAnswered = answered[0];
+  const latestLead = latestAnswered ? extractLeadDetails(latestAnswered) : null;
+  return [
+    "EthikCorp EC Calling Agent daily update",
+    "",
+    `Answered calls: ${answered.length}`,
+    `Captured leads: ${leads.length}`,
+    "",
+    "Latest answered call:",
+    latestLead
+      ? `${latestLead.name} | ${latestLead.phone} | ${latestLead.place} | ${latestLead.requirement}`
+      : "No answered calls captured yet.",
+    "",
+    "Captured lead details:",
+    ...leadLines(leads),
+  ].join("\n");
+}
+
+async function sendEmailUpdate(recipients, subject, message) {
+  const response = await fetch("/api/email-updates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipients, subject, message }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || "Could not send email update.");
+  }
+  return response.json();
+}
+
+async function fetchLatestVapiUpdate() {
+  const response = await fetch("/api/vapi/latest");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || "Could not fetch the latest Vapi update.");
+  }
+  return response.json();
+}
+
+function buildEmailUpdateRecord({ callId = "digest", recipients, message, status = "sending", result = null, error = "" }) {
+  return {
+    id: `email-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    callId,
+    recipients,
+    message,
+    status,
+    sentAt: nowIso(),
+    result,
+    error,
+  };
+}
+
 function callDropSummary(records) {
   const total = records.length;
   const droppedByAgent = records.filter((record) => record.status === "error").length;
@@ -626,6 +755,13 @@ function App() {
   const [callPanelOpen, setCallPanelOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [notificationCount, setNotificationCount] = useState(0);
+  const [emailRecipientsText, setEmailRecipientsText] = useState(loadEmailRecipients);
+  const [emailUpdates, setEmailUpdates] = useState(loadEmailUpdates);
+  const emailRecipientsRef = useRef(parseEmailRecipients(emailRecipientsText));
+  const autoEmailCallIdsRef = useRef(new Set([
+    ...emailUpdates.map((update) => update.callId).filter((id) => id && id !== "digest"),
+    ...answeredCallRecords(callRecords).map((record) => record.id),
+  ]));
   const uaeClock = useUaeClock();
   const call = useVapiCall((event) => {
     setCallRecords((currentRecords) => applyCallEvent(currentRecords, event));
@@ -644,12 +780,14 @@ function App() {
   const liveLeads = useMemo(() => visibleRecords.map(recordToLead), [visibleRecords]);
   const reportConversations = useMemo(() => callRecords.map(recordToConversation), [callRecords]);
   const reportLeads = useMemo(() => callRecords.map(recordToLead), [callRecords]);
+  const answeredCalls = useMemo(() => answeredCallRecords(callRecords), [callRecords]);
   const selectedConversation = liveConversations.find((item) => item.id === selectedConversationId) || liveConversations[0];
   const navItems = useMemo(() => NAV_ITEMS.map((item) => {
     if (item.id === "conversations") return { ...item, count: liveConversations.length };
     if (item.id === "leads") return { ...item, count: liveLeads.length };
+    if (item.id === "email") return { ...item, count: emailUpdates.length || answeredCalls.length };
     return item;
-  }), [liveConversations.length, liveLeads.length]);
+  }), [answeredCalls.length, liveConversations.length, liveLeads.length, emailUpdates.length]);
 
   function updateWorkflowStatus(recordId, workflowStatus) {
     setCallRecords((currentRecords) => currentRecords.map((record) => (
@@ -702,6 +840,51 @@ function App() {
     window.localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(callRecords));
   }, [callRecords]);
 
+  useEffect(() => {
+    const recipients = parseEmailRecipients(emailRecipientsText);
+    emailRecipientsRef.current = recipients;
+    window.localStorage.setItem(EMAIL_RECIPIENTS_KEY, JSON.stringify(recipients));
+  }, [emailRecipientsText]);
+
+  useEffect(() => {
+    window.localStorage.setItem(EMAIL_UPDATES_KEY, JSON.stringify(emailUpdates.slice(0, 30)));
+  }, [emailUpdates]);
+
+  useEffect(() => {
+    const recipients = emailRecipientsRef.current;
+    if (!recipients.length) return;
+
+    answeredCallRecords(callRecords).forEach((record) => {
+      if (autoEmailCallIdsRef.current.has(record.id)) return;
+      autoEmailCallIdsRef.current.add(record.id);
+
+      const message = buildSingleEmailSummary(record);
+      const update = buildEmailUpdateRecord({
+        callId: record.id,
+        recipients,
+        message,
+        status: "sending",
+      });
+
+      setEmailUpdates((currentUpdates) => [update, ...currentUpdates].slice(0, 30));
+      sendEmailUpdate(recipients, "EthikCorp EC Calling Agent call summary", message)
+        .then((result) => {
+          setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
+            item.id === update.id
+              ? { ...item, status: result.configured === false ? "preview" : "sent", result, sentAt: nowIso() }
+              : item
+          )));
+        })
+        .catch((error) => {
+          setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
+            item.id === update.id
+              ? { ...item, status: "error", error: error.message || "Could not send email update.", sentAt: nowIso() }
+              : item
+          )));
+        });
+    });
+  }, [callRecords]);
+
   return (
     <div className={`app-shell page-${activePage}`}>
       <Sidebar activePage={activePage} setActivePage={setActivePage} navItems={navItems} />
@@ -729,6 +912,17 @@ function App() {
             />
           )}
           {activePage === "leads" && <LeadsPage leads={liveLeads} reportLeads={reportLeads} updateWorkflowStatus={updateWorkflowStatus} globalSearch={globalSearch} />}
+          {activePage === "email" && (
+            <EmailUpdatesPage
+              callRecords={callRecords}
+              leads={reportLeads}
+              globalSearch={globalSearch}
+              recipientsText={emailRecipientsText}
+              setRecipientsText={setEmailRecipientsText}
+              emailUpdates={emailUpdates}
+              setEmailUpdates={setEmailUpdates}
+            />
+          )}
           {activePage === "test" && <TestCallPage call={call} callRecords={callRecords} />}
         </main>
       </div>
@@ -934,6 +1128,7 @@ function Topbar({ activePage, setActivePage, openCall, navItems, globalSearch, s
     overview: ["Voice Agent Analytics at a glance", ""],
     conversations: ["Conversation", "Past calls and transcript review"],
     leads: ["Lead Management", "Client information captured by the AI agent"],
+    email: ["Email Updates", "Send call summaries and captured lead details"],
     test: ["Diagnostics", "Live EC Calling Agent quality check"],
   };
   const [title, subtitle] = titles[activePage];
@@ -1166,7 +1361,7 @@ function BarMix() {
   const items = [
     ["Website", 88, "#25A9DA"],
     ["Direct", 64, "#325A9F"],
-    ["WhatsApp", 42, "#21B486"],
+    ["Email", 42, "#21B486"],
     ["Campaigns", 31, "#F59E0B"],
     ["Referral", 24, "#8B5CF6"],
   ];
@@ -1682,9 +1877,177 @@ function Score({ value }) {
   return <span className="score"><i><b style={{ width: `${value}%` }} /></i><strong>{value}</strong></span>;
 }
 
+function EmailUpdatesPage({ callRecords, leads, globalSearch, recipientsText, setRecipientsText, emailUpdates, setEmailUpdates }) {
+  const [selectedCallId, setSelectedCallId] = useState("digest");
+  const [sendState, setSendState] = useState({ status: "idle", message: "" });
+  const answered = useMemo(() => answeredCallRecords(callRecords), [callRecords]);
+  const filteredAnswered = useMemo(() => (
+    answered.filter((record) => {
+      const lead = extractLeadDetails(record);
+      return matchesQuery([lead.name, lead.phone, lead.email, lead.place, lead.requirement, record.summary], globalSearch);
+    })
+  ), [answered, globalSearch]);
+  const selectedRecord = answered.find((record) => record.id === selectedCallId);
+  const recipients = useMemo(() => parseEmailRecipients(recipientsText), [recipientsText]);
+  const messagePreview = useMemo(() => (
+    selectedCallId === "digest"
+      ? buildDigestEmailSummary(callRecords, leads)
+      : buildSingleEmailSummary(selectedRecord)
+  ), [callRecords, leads, selectedCallId, selectedRecord]);
+
+  async function handleSendUpdate() {
+    if (!recipients.length) {
+      setSendState({ status: "error", message: "Add at least one valid email recipient." });
+      return;
+    }
+
+    const update = buildEmailUpdateRecord({
+      callId: selectedCallId,
+      recipients,
+      message: messagePreview,
+      status: "sending",
+    });
+    setEmailUpdates((currentUpdates) => [update, ...currentUpdates].slice(0, 30));
+    setSendState({ status: "sending", message: "Sending email update..." });
+    try {
+      const result = await sendEmailUpdate(recipients, "EthikCorp EC Calling Agent call summary", messagePreview);
+      const status = result.configured === false ? "preview" : "sent";
+      setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
+        item.id === update.id ? { ...item, status, result, sentAt: nowIso() } : item
+      )));
+      if (result.configured === false) {
+        setSendState({
+          status: "warning",
+          message: "Message preview is ready. Add SMTP credentials on the server to send externally.",
+        });
+        return;
+      }
+
+      setSendState({ status: "success", message: `Sent to ${result.sent || recipients.length} recipient${(result.sent || recipients.length) === 1 ? "" : "s"}.` });
+    } catch (error) {
+      setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
+        item.id === update.id
+          ? { ...item, status: "error", error: error.message || "Could not send email update.", sentAt: nowIso() }
+          : item
+      )));
+      setSendState({ status: "error", message: error.message || "Could not send email update." });
+    }
+  }
+
+  return (
+    <section className="email-page">
+      <div className="email-grid">
+        <article className="panel email-composer">
+          <PanelTitle title="Email Update" subtitle="Send answered call summaries with captured lead details." />
+          <label className="email-recipients">
+            <span>Recipient emails</span>
+            <textarea
+              value={recipientsText}
+              onChange={(event) => setRecipientsText(event.target.value)}
+              placeholder={"operations@ethikcorp.com\nsales@ethikcorp.com"}
+              rows={4}
+            />
+            <small>Use one email per line or separate addresses with commas.</small>
+          </label>
+          <div className="email-mode-row">
+            <button
+              type="button"
+              className={selectedCallId === "digest" ? "active" : ""}
+              onClick={() => setSelectedCallId("digest")}
+            >
+              Full lead digest
+            </button>
+            <span>{recipients.length} recipient{recipients.length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="email-preview">
+            <header>
+              <strong>Message preview</strong>
+              <small>{messagePreview.length} chars</small>
+            </header>
+            <pre>{messagePreview}</pre>
+          </div>
+          <button
+            type="button"
+            className="email-send-button"
+            disabled={sendState.status === "sending"}
+            onClick={handleSendUpdate}
+          >
+            <Send size={17} />
+            {sendState.status === "sending" ? "Sending..." : "Send Email Update"}
+          </button>
+          {sendState.message && <p className={`email-send-status ${sendState.status}`}>{sendState.message}</p>}
+        </article>
+
+        <aside className="email-live-panel">
+          <section className="email-update-feed">
+            <header>
+              <div>
+                <strong>Live email updates</strong>
+                <small>{emailUpdates.length} outgoing update{emailUpdates.length === 1 ? "" : "s"}</small>
+              </div>
+            </header>
+            {!emailUpdates.length && (
+              <div className="empty-state compact">
+                <strong>No updates sent yet</strong>
+                <p>After an answered call ends, the generated summary will appear here automatically.</p>
+              </div>
+            )}
+            {emailUpdates.map((update) => (
+              <article className={`email-update-card ${update.status}`} key={update.id}>
+                <span>
+                  <strong>{update.status === "preview" ? "Preview ready" : update.status === "sent" ? "Sent" : update.status === "error" ? "Failed" : "Sending"}</strong>
+                  <em>{formatRelativeTime(update.sentAt)}</em>
+                </span>
+                <small>{update.recipients.join(", ")}</small>
+                <p>{update.message}</p>
+                {update.error && <b>{update.error}</b>}
+              </article>
+            ))}
+          </section>
+
+          <section className="email-call-list">
+          <header>
+            <div>
+              <strong>Answered calls</strong>
+              <small>{answered.length} call{answered.length === 1 ? "" : "s"} ready for summary</small>
+            </div>
+          </header>
+          {!filteredAnswered.length && (
+            <div className="empty-state compact">
+              <strong>No answered calls yet</strong>
+              <p>Completed calls with transcripts will appear here for email updates.</p>
+            </div>
+          )}
+          {filteredAnswered.map((record) => {
+            const lead = extractLeadDetails(record);
+            return (
+              <button
+                type="button"
+                key={record.id}
+                className={selectedCallId === record.id ? "email-call-card active" : "email-call-card"}
+                onClick={() => setSelectedCallId(record.id)}
+              >
+                <span>
+                  <strong>{lead.name}</strong>
+                  <em>{formatDisplayDate(record.startedAt)}</em>
+                </span>
+                <p>{lead.requirement}</p>
+                <small>{lead.phone} · {lead.place}</small>
+              </button>
+            );
+          })}
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 function TestCallPage({ call, callRecords }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [vapiUpdate, setVapiUpdate] = useState(null);
+  const [vapiUpdateStatus, setVapiUpdateStatus] = useState({ state: "idle", message: "" });
 
   function downloadAgentLogs() {
     const rows = filterByDateRange(callRecords, fromDate, toDate).map((record) => {
@@ -1712,6 +2075,22 @@ function TestCallPage({ call, callRecords }) {
     );
   }
 
+  async function loadLatestVapiUpdate() {
+    setVapiUpdateStatus({ state: "loading", message: "Fetching latest Vapi agent update..." });
+    try {
+      const data = await fetchLatestVapiUpdate();
+      setVapiUpdate(data);
+      setVapiUpdateStatus({
+        state: data.configured === false ? "warning" : "success",
+        message: data.configured === false
+          ? data.message
+          : `Latest Vapi update fetched at ${formatTranscriptTime(data.fetchedAt, 0)}.`,
+      });
+    } catch (error) {
+      setVapiUpdateStatus({ state: "error", message: error.message || "Could not fetch latest Vapi update." });
+    }
+  }
+
   return (
     <section className="test-call-page">
       <div className="diagnostics-left">
@@ -1721,6 +2100,11 @@ function TestCallPage({ call, callRecords }) {
             subtitle="Click the Start Call button to initiate a live call. Your browser will request permission to access the microphone before the call begins."
           />
         </article>
+        <VapiLatestUpdateBox
+          update={vapiUpdate}
+          status={vapiUpdateStatus}
+          onRefresh={loadLatestVapiUpdate}
+        />
         <AgentLogDownloadBox
           fromDate={fromDate}
           setFromDate={setFromDate}
@@ -1731,6 +2115,35 @@ function TestCallPage({ call, callRecords }) {
       </div>
       <PhoneMockup call={call} />
     </section>
+  );
+}
+
+function VapiLatestUpdateBox({ update, status, onRefresh }) {
+  const latestCall = update?.latestCalls?.[0];
+  return (
+    <article className="vapi-update-box">
+      <header>
+        <Bot size={18} />
+        <div>
+          <strong>Latest Vapi agent update</strong>
+          <small>{update?.assistant?.name || "EC Calling Agent"}</small>
+        </div>
+      </header>
+      <div className="vapi-update-grid">
+        <span><small>Assistant ID</small><strong>{update?.assistant?.id || update?.assistantId || VAPI_ASSISTANT_ID}</strong></span>
+        <span><small>Model</small><strong>{update?.assistant?.model || "Not fetched"}</strong></span>
+        <span><small>Latest call</small><strong>{latestCall?.status || "No call data"}</strong></span>
+        <span><small>Updated</small><strong>{update?.assistant?.updatedAt ? formatDisplayDate(update.assistant.updatedAt) : "Not fetched"}</strong></span>
+      </div>
+      {latestCall?.summary && (
+        <p>{latestCall.summary}</p>
+      )}
+      {status.message && <p className={`vapi-update-status ${status.state}`}>{status.message}</p>}
+      <button type="button" onClick={onRefresh} disabled={status.state === "loading"}>
+        <Download size={17} />
+        {status.state === "loading" ? "Fetching..." : "Get Latest Vapi Update"}
+      </button>
+    </article>
   );
 }
 
