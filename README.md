@@ -1,15 +1,7 @@
 # EthikCorpVoiceAgent
 
-Live dashboard for the EthikCorp Agent.
+Test EthikCorp Voice Agent.
 
-## Features
-
-- Home dashboard with voice-agent analytics.
-- Conversation timeline with call transcript examples.
-- Lead management table for customer details collected from calls.
-- Email Updates tab for sending answered-call summaries and captured lead details to selected email addresses.
-- Test Call console and floating phone widget connected to the EthikCorp Agent via the Vapi browser SDK.
-- Optional Supabase persistence for live calls, transcripts, analytics, and captured leads.
 
 ## Local Setup
 
