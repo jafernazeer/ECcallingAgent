@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import "./load-env.js";
 import express from "express";
 import nodemailer from "nodemailer";
 import { createServer as createViteServer } from "vite";
@@ -7,6 +8,7 @@ import {
   getPersistenceMode,
   listCallRecords,
   saveCallEvent,
+  saveVapiLeadTool,
   saveVapiWebhook,
   updateWorkflowStatus,
 } from "./call-store.js";
@@ -16,7 +18,7 @@ const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 5173);
 const hmrPort = Number(process.env.HMR_PORT || port + 20000);
 const vapiPrivateApiKey = process.env.VAPI_PRIVATE_API_KEY || "";
-const vapiAssistantId = process.env.VAPI_ASSISTANT_ID || "429bb390-be3c-4b1e-bc3a-2a717917725c";
+const vapiAssistantId = process.env.VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
 const vapiWebhookSecret = process.env.VAPI_WEBHOOK_SECRET || "";
 const smtpHost = process.env.SMTP_HOST || "";
 const smtpPort = Number(process.env.SMTP_PORT || 587);
@@ -207,10 +209,27 @@ app.post("/api/vapi/webhook", async (request, response) => {
   }
 });
 
+app.post("/api/vapi/lead-tool", async (request, response) => {
+  try {
+    if (!isValidVapiWebhook(request)) {
+      response.status(401).json({ ok: false, error: "Unauthorized webhook request" });
+      return;
+    }
+
+    const result = await saveVapiLeadTool(request.body);
+    response.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    sendApiError(response, error);
+  }
+});
+
 app.post("/api/email-updates", async (request, response) => {
   try {
     const recipients = Array.isArray(request.body?.recipients) ? request.body.recipients : [];
-    const subject = String(request.body?.subject || "EthikCorp EC Calling Agent call summary").trim();
+    const subject = String(request.body?.subject || "EthikCorp Agent call summary").trim();
     const message = String(request.body?.message || "").trim();
     const normalizedRecipients = [...new Set(recipients.map(normalizeEmail).filter(Boolean))];
 
@@ -267,5 +286,5 @@ const vite = await createViteServer({
 app.use(vite.middlewares);
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`EthikCorp EC Calling Agent dashboard running at http://localhost:${port}/`);
+  console.log(`EthikCorp Agent dashboard running at http://localhost:${port}/`);
 });

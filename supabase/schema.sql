@@ -37,7 +37,7 @@ create table if not exists public.leads (
   phone text not null default 'Browser call',
   email text not null default 'Not provided',
   place text not null default 'Not captured',
-  requirement text not null default 'Live EC Calling Agent inquiry',
+  requirement text not null default 'Live EthikCorp Agent inquiry',
   status text not null default 'Open',
   source text not null default 'ai_call',
   last_contact_at timestamptz,

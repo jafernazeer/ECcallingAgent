@@ -1,3 +1,4 @@
+import "./load-env.js";
 import { createClient } from "@supabase/supabase-js";
 
 const MAX_CALL_RECORDS = 80;
@@ -27,6 +28,11 @@ function normalizeDate(value) {
 
 function getWorkflowStatus(status) {
   return WORKFLOW_STATUSES.includes(status) ? status : "Open";
+}
+
+function cleanText(value, fallback = "") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text || fallback;
 }
 
 function normalizeTranscriptEntry(entry) {
@@ -86,7 +92,7 @@ function extractRequirement(entries, call) {
     if (requirement.length > 18 && !/@/.test(entry.text)) return requirement;
   }
 
-  return call?.summary || call?.lead?.requirement || "Live EC Calling Agent inquiry";
+  return call?.summary || call?.lead?.requirement || "Live EthikCorp Agent inquiry";
 }
 
 function extractPlace(entries, body, call) {
@@ -155,7 +161,7 @@ function mapCallRow(row) {
     agentJoined: Boolean(row.agent_joined),
     workflowStatus: getWorkflowStatus(row.workflow_status),
     transcript,
-    summary: row.summary || "Live EC Calling Agent call in progress.",
+    summary: row.summary || "Live EthikCorp Agent call in progress.",
     lead: row.lead || row.leads?.[0] || null,
   };
 }
@@ -265,7 +271,7 @@ export async function saveCallEvent(event, rawPayload = null) {
       ended_at: null,
       status: "connecting",
       workflow_status: "Open",
-      summary: "Live EC Calling Agent call in progress.",
+      summary: "Live EthikCorp Agent call in progress.",
       agent_joined: false,
     });
   }
@@ -282,7 +288,7 @@ export async function saveCallEvent(event, rawPayload = null) {
     Object.assign(callPatch, {
       ended_at: normalizeDate(event.endedAt) || currentTime,
       status: "ended",
-      summary: event.summary || event.message || "EC Calling Agent call ended.",
+      summary: event.summary || event.message || "EthikCorp Agent call ended.",
       agent_joined: false,
     });
   }
@@ -291,7 +297,7 @@ export async function saveCallEvent(event, rawPayload = null) {
     Object.assign(callPatch, {
       ended_at: normalizeDate(event.endedAt) || currentTime,
       status: "error",
-      summary: event.message || "EC Calling Agent call failed.",
+      summary: event.message || "EthikCorp Agent call failed.",
       agent_joined: false,
     });
   }
@@ -336,6 +342,129 @@ function getVapiCallId(payload) {
     || null;
 }
 
+function parseToolArguments(value) {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return typeof value === "object" ? value : {};
+}
+
+function extractSubmitLeadToolCalls(payload) {
+  const message = pickVapiMessage(payload);
+  const toolCalls = message?.toolCalls
+    || message?.tool_calls
+    || payload?.toolCalls
+    || payload?.tool_calls
+    || [];
+
+  return (Array.isArray(toolCalls) ? toolCalls : [toolCalls])
+    .filter(Boolean)
+    .map((toolCall) => {
+      const functionName = toolCall?.function?.name || toolCall?.name || toolCall?.functionName;
+      return {
+        id: toolCall?.id || toolCall?.toolCallId || `submit-lead-${Date.now()}`,
+        name: functionName,
+        args: parseToolArguments(toolCall?.function?.arguments || toolCall?.arguments || toolCall?.parameters),
+      };
+    })
+    .filter((toolCall) => toolCall.name === "submit_lead");
+}
+
+function normalizeSubmittedLead(args) {
+  return {
+    name: cleanText(args.customer_name, "Caller"),
+    company: cleanText(args.company_name, "Not provided"),
+    place: cleanText(args.location, "Not captured"),
+    requirement: cleanText(args.requirement_summary, "Live EthikCorp Agent inquiry"),
+    phone: cleanText(args.contact_number, "Not provided"),
+    email: cleanText(args.email_id, "Not provided"),
+    source: "Vapi Lead Tool",
+    score: 96,
+  };
+}
+
+async function upsertSubmittedLead(callId, lead, rawPayload = null) {
+  const client = requireSupabase();
+  if (!client) return { persistence: "local", saved: false };
+
+  const currentTime = nowIso();
+  await client
+    .from("calls")
+    .upsert({
+      id: callId,
+      vapi_call_id: callId,
+      channel: "Voice",
+      source: "Vapi Lead Tool",
+      started_at: currentTime,
+      status: "ended",
+      workflow_status: "Open",
+      summary: lead.requirement,
+      agent_joined: true,
+      lead,
+      raw: rawPayload,
+      updated_at: currentTime,
+    }, { onConflict: "id" });
+
+  await client
+    .from("leads")
+    .upsert({
+      id: `lead-${callId}`,
+      call_id: callId,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+      place: lead.place,
+      requirement: lead.requirement,
+      status: "Open",
+      source: lead.source,
+      last_contact_at: currentTime,
+      updated_at: currentTime,
+    }, { onConflict: "id" });
+
+  return { persistence: "supabase", saved: true };
+}
+
+export async function saveVapiLeadTool(payload) {
+  const toolCalls = extractSubmitLeadToolCalls(payload);
+  if (!toolCalls.length) {
+    return {
+      persistence: getPersistenceMode(),
+      saved: false,
+      results: [],
+      reason: "missing_submit_lead_tool_call",
+    };
+  }
+
+  const callIdBase = getVapiCallId(payload) || `vapi-lead-${Date.now()}`;
+  const savedLeads = [];
+  const results = [];
+
+  for (const [index, toolCall] of toolCalls.entries()) {
+    const callId = toolCalls.length === 1 ? callIdBase : `${callIdBase}-${index + 1}`;
+    const lead = normalizeSubmittedLead(toolCall.args);
+    const saveResult = await upsertSubmittedLead(callId, lead, payload);
+    savedLeads.push({ callId, lead, ...saveResult });
+    results.push({
+      toolCallId: toolCall.id,
+      result: saveResult.saved
+        ? "Lead submitted to the EthikCorp Lead Management Portal."
+        : "Lead details received. Dashboard database is not configured yet.",
+    });
+  }
+
+  return {
+    persistence: savedLeads[0]?.persistence || getPersistenceMode(),
+    saved: savedLeads.some((item) => item.saved),
+    leads: savedLeads,
+    results,
+  };
+}
+
 export async function saveVapiWebhook(payload) {
   const message = pickVapiMessage(payload);
   const type = String(message?.type || payload?.type || "").toLowerCase();
@@ -367,7 +496,7 @@ export async function saveVapiWebhook(payload) {
       ...base,
       type: "call-end",
       endedAt: message?.endedAt || message?.call?.endedAt || nowIso(),
-      summary: message?.summary || message?.analysis?.summary || message?.artifact?.summary || "EC Calling Agent call ended.",
+      summary: message?.summary || message?.analysis?.summary || message?.artifact?.summary || "EthikCorp Agent call ended.",
     }, payload);
   }
 

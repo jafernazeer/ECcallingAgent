@@ -40,10 +40,17 @@ const NAV_ITEMS = [
   { id: "test", label: "Diagnostics", hint: "EC agent QA", icon: PhoneCall },
 ];
 
-const VAPI_PUBLIC_KEY = "ee1d4795-4453-4456-ba50-c42a3404e1c3";
-const VAPI_ASSISTANT_ID = "429bb390-be3c-4b1e-bc3a-2a717917725c";
+const VAPI_PUBLIC_KEY = "f80cea3b-d773-4f2c-88a8-8d7c87cd57ee";
+const VAPI_ASSISTANT_ID = "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
+const VAPI_ORG_ID = "7a20e8e2-726e-485e-8348-09fb9ef8e729";
+const VAPI_AGENT_NAME = "EthikCorp Agent";
+const VAPI_VOICE = {
+  provider: "cartesia",
+  model: "sonic-3.5",
+  voiceId: "638efaaa-4d0c-442e-b701-3fae16aad012",
+};
 const EC_AGENT_SCRIPT = `
-You are the EthikCorp EC Calling Agent for inbound customer calls.
+You are the EthikCorp Agent for inbound customer calls.
 
 Conversation style:
 - Be warm, calm, and client friendly.
@@ -79,10 +86,17 @@ Lead capture rules:
 - Repeat captured details only at the end unless clarification is needed.
 - If a value is unclear, ask a short confirmation question.
 - Always keep the call moving toward a complete lead record.
+- Once full name, company, location, requirement, phone, and email are captured, call the submit_lead tool exactly once before closing the call.
 `.trim();
 const EC_AGENT_ASSISTANT_OVERRIDES = {
+  name: VAPI_AGENT_NAME,
+  metadata: {
+    orgId: VAPI_ORG_ID,
+    assistantId: VAPI_ASSISTANT_ID,
+  },
   firstMessage: "Hello, this is EthikCorp. How can I help you today?",
   firstMessageMode: "assistant-speaks-first",
+  voice: VAPI_VOICE,
   model: {
     provider: "openai",
     model: "gpt-4o-mini",
@@ -338,7 +352,7 @@ function firstCustomerRequirement(record) {
     if (requirement.length > 18 && !/@/.test(entry.text)) return requirement;
   }
 
-  return record.summary || "Live EC Calling Agent inquiry";
+  return record.summary || "Live EthikCorp Agent inquiry";
 }
 
 function cleanStatedName(value) {
@@ -432,7 +446,7 @@ function recordToConversation(record) {
     summary: record.summary || summarizeCall(record),
     transcript: transcript.length
       ? transcript.map((entry, index) => [entry.speaker, entry.text, formatTranscriptTime(entry.at, index)])
-      : [["AI Agent", "Call started. Waiting for live transcript data from the EC Calling Agent.", "now"]],
+      : [["AI Agent", "Call started. Waiting for live transcript data from the EthikCorp Agent.", "now"]],
   };
 }
 
@@ -564,12 +578,12 @@ function leadLines(leads, limit = 8) {
 
 function buildSingleEmailSummary(record) {
   if (!record) {
-    return "EthikCorp EC Calling Agent update\n\nNo answered call is selected yet.";
+    return "EthikCorp Agent update\n\nNo answered call is selected yet.";
   }
 
   const lead = extractLeadDetails(record);
   return [
-    "EthikCorp EC Calling Agent update",
+    "EthikCorp Agent update",
     "",
     `Call date: ${formatDisplayDate(record.startedAt)}`,
     `Caller: ${lead.name}`,
@@ -594,7 +608,7 @@ function buildDigestEmailSummary(records, leads) {
   const latestAnswered = answered[0];
   const latestLead = latestAnswered ? extractLeadDetails(latestAnswered) : null;
   return [
-    "EthikCorp EC Calling Agent daily update",
+    "EthikCorp Agent daily update",
     "",
     `Answered calls: ${answered.length}`,
     `Captured leads: ${leads.length}`,
@@ -689,7 +703,7 @@ function applyCallEvent(records, event) {
     agentJoined: false,
     workflowStatus: "Open",
     transcript: [],
-    summary: "Live EC Calling Agent call in progress.",
+    summary: "Live EthikCorp Agent call in progress.",
   };
   let updated = { ...base, transcript: [...(base.transcript || [])] };
 
@@ -706,7 +720,7 @@ function applyCallEvent(records, event) {
   }
 
   if (event.type === "call-error") {
-    updated = { ...updated, status: "error", endedAt: event.endedAt || nowIso(), summary: event.message || "EC Calling Agent call failed." };
+    updated = { ...updated, status: "error", endedAt: event.endedAt || nowIso(), summary: event.message || "EthikCorp Agent call failed." };
   }
 
   if (event.type === "transcript" && event.text?.trim()) {
@@ -867,7 +881,7 @@ function App() {
       });
 
       setEmailUpdates((currentUpdates) => [update, ...currentUpdates].slice(0, 30));
-      sendEmailUpdate(recipients, "EthikCorp EC Calling Agent call summary", message)
+      sendEmailUpdate(recipients, "EthikCorp Agent call summary", message)
         .then((result) => {
           setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
             item.id === update.id
@@ -933,7 +947,7 @@ function App() {
 
 function useVapiCall(onCallEvent) {
   const [status, setStatus] = useState("idle");
-  const [message, setMessage] = useState("Ready for EC Calling Agent test.");
+  const [message, setMessage] = useState("Ready for EthikCorp Agent test.");
   const [participantCount, setParticipantCount] = useState(0);
   const [agentJoined, setAgentJoined] = useState(false);
   const [dispatchAccepted, setDispatchAccepted] = useState(false);
@@ -957,10 +971,10 @@ function useVapiCall(onCallEvent) {
   }
 
   function getErrorMessage(error) {
-    if (!error) return "Could not start the EC Calling Agent call.";
+    if (!error) return "Could not start the EthikCorp Agent call.";
     if (typeof error === "string") return error;
     if (error instanceof Error) return error.message;
-    return error.message || error.error?.message || error.error || "Could not start the EC Calling Agent call.";
+    return error.message || error.error?.message || error.error || "Could not start the EthikCorp Agent call.";
   }
 
   async function getVapiClient() {
@@ -975,7 +989,7 @@ function useVapiCall(onCallEvent) {
       setAgentJoined(true);
       setDispatchAccepted(true);
       setParticipantCount(2);
-      setMessage("EC Calling Agent is live. Speak now.");
+      setMessage("EthikCorp Agent is live. Speak now.");
       emitCallEvent({ type: "call-start", sessionId: activeCallIdRef.current, startedAt: nowIso() });
     });
 
@@ -990,7 +1004,7 @@ function useVapiCall(onCallEvent) {
     });
 
     vapi.on("speech-start", () => {
-      setMessage("EC Calling Agent is speaking.");
+      setMessage("EthikCorp Agent is speaking.");
     });
 
     vapi.on("speech-end", () => {
@@ -999,7 +1013,7 @@ function useVapiCall(onCallEvent) {
 
     vapi.on("call-start-progress", (event) => {
       if (event?.stage) {
-        setMessage("Connecting to EC Calling Agent...");
+        setMessage("Connecting to EthikCorp Agent...");
       }
     });
 
@@ -1008,12 +1022,12 @@ function useVapiCall(onCallEvent) {
       setAgentJoined(false);
       setDispatchAccepted(false);
       setParticipantCount(0);
-      setMessage(event?.error || "The EC Calling Agent call could not start.");
+      setMessage(event?.error || "The EthikCorp Agent call could not start.");
       emitCallEvent({
         type: "call-error",
         sessionId: activeCallIdRef.current,
         endedAt: nowIso(),
-        message: event?.error || "The EC Calling Agent call could not start.",
+        message: event?.error || "The EthikCorp Agent call could not start.",
       });
     });
 
@@ -1056,7 +1070,7 @@ function useVapiCall(onCallEvent) {
     try {
       const vapi = await getVapiClient();
       await vapi.start(VAPI_ASSISTANT_ID, EC_AGENT_ASSISTANT_OVERRIDES);
-      setMessage("Connecting to EC Calling Agent...");
+      setMessage("Connecting to EthikCorp Agent...");
     } catch (error) {
       setStatus("error");
       setAgentJoined(false);
@@ -1115,7 +1129,7 @@ function Sidebar({ activePage, setActivePage, navItems }) {
         <span className="avatar">EC</span>
         <div>
           <strong>EthikCorp</strong>
-          <small>EC Calling Agent</small>
+          <small>EthikCorp Agent</small>
         </div>
       </div>
     </aside>
@@ -1129,7 +1143,7 @@ function Topbar({ activePage, setActivePage, openCall, navItems, globalSearch, s
     conversations: ["Conversation", "Past calls and transcript review"],
     leads: ["Lead Management", "Client information captured by the AI agent"],
     email: ["Email Updates", "Send call summaries and captured lead details"],
-    test: ["Diagnostics", "Live EC Calling Agent quality check"],
+    test: ["Diagnostics", "Live EthikCorp Agent quality check"],
   };
   const [title, subtitle] = titles[activePage];
 
@@ -1152,7 +1166,7 @@ function Topbar({ activePage, setActivePage, openCall, navItems, globalSearch, s
         <button
           type="button"
           className="mobile-call-trigger"
-          aria-label="Open EC Calling Agent test widget"
+          aria-label="Open EthikCorp Agent test widget"
           onClick={() => {
             setMenuOpen(false);
             openCall();
@@ -1910,7 +1924,7 @@ function EmailUpdatesPage({ callRecords, leads, globalSearch, recipientsText, se
     setEmailUpdates((currentUpdates) => [update, ...currentUpdates].slice(0, 30));
     setSendState({ status: "sending", message: "Sending email update..." });
     try {
-      const result = await sendEmailUpdate(recipients, "EthikCorp EC Calling Agent call summary", messagePreview);
+      const result = await sendEmailUpdate(recipients, "EthikCorp Agent call summary", messagePreview);
       const status = result.configured === false ? "preview" : "sent";
       setEmailUpdates((currentUpdates) => currentUpdates.map((item) => (
         item.id === update.id ? { ...item, status, result, sentAt: nowIso() } : item
@@ -2126,7 +2140,7 @@ function VapiLatestUpdateBox({ update, status, onRefresh }) {
         <Bot size={18} />
         <div>
           <strong>Latest Vapi agent update</strong>
-          <small>{update?.assistant?.name || "EC Calling Agent"}</small>
+          <small>{update?.assistant?.name || "EthikCorp Agent"}</small>
         </div>
       </header>
       <div className="vapi-update-grid">
@@ -2176,7 +2190,7 @@ function PhoneMockup({ call }) {
       <div className="phone-speaker" />
       <div className="phone-screen">
         <header>
-          <span>EC Calling Agent</span>
+          <span>EthikCorp Agent</span>
           <small>{call.agentJoined ? "Agent live" : waitingForAgent ? "Waiting for agent" : connecting ? "Connecting" : "Ready to test"}</small>
         </header>
         <div className={`pulse-orb ${call.agentJoined ? "connected" : ""}`}>
@@ -2216,12 +2230,12 @@ function FloatingCallWidget({ isOpen, setIsOpen, call }) {
       </button>
       {isOpen && (
         <div className="call-modal-backdrop" role="dialog" aria-modal="true" aria-label="Live test call popup">
-          <div className="call-modal call-widget-phone" aria-label="EC Calling Agent test phone">
+          <div className="call-modal call-widget-phone" aria-label="EthikCorp Agent test phone">
             <button className="modal-close" type="button" aria-label="Close popup" onClick={() => setIsOpen(false)}><X size={20} /></button>
             <div className="call-widget-speaker" />
             <div className="call-widget-screen">
               <header>
-                <span>EC Calling Agent</span>
+                <span>EthikCorp Agent</span>
                 <small>Ready to test</small>
               </header>
               <div className="call-widget-orb">
