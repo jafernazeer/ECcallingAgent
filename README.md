@@ -1,16 +1,18 @@
-# ECcallingAgent
+# EthikcorpECDashboard
 
-Dedicated EthikCorp Agent test portal for client-facing browser calls.
+Live dashboard shell for the EthikCorp calling agent.
 
-This portal uses the Vapi browser SDK to call the configured EthikCorp Agent.
+This dashboard uses the Vapi browser SDK for diagnostics/test calls and receives call events from the standalone EthikCorp Agent portal.
 
-## What It Does
+## Features
 
-- Shows only the EthikCorp Agent test portal.
-- Starts live browser calls with Vapi using the EthikCorp Agent assistant ID.
-- Stores call events and transcript events through `/api/call-events`.
-- Uses the same Supabase tables as the EthikCorp dashboard when persistence is configured.
-- Mirrors events to the local dashboard at `http://localhost:5172/api/call-events` when running locally without Supabase.
+- Dashboard analytics layout.
+- Conversation timeline.
+- Lead management table.
+- Email update workflow.
+- Diagnostics page with Vapi-powered live call controls.
+- Supabase persistence for generic calls, transcripts, analytics, and captured leads when configured.
+- Local fallback event storage for portal-to-dashboard testing without Supabase.
 
 ## Local Setup
 
@@ -22,41 +24,15 @@ npm run dev
 Open:
 
 ```text
-http://localhost:5173/
+http://localhost:5173
 ```
 
-## Hostinger Deployment
+## Supabase Live Data Setup
 
-Deploy this repo to:
-
-```text
-https://ethikcorp.aqionlabs.com
-```
-
-Use:
-
-```bash
-npm ci
-npm run build
-```
-
-Build output:
-
-```text
-dist/
-```
-
-If Hostinger runs the Node server, use:
-
-```bash
-npm run dev
-```
-
-If Hostinger serves only static files, deploy the `dist/` folder. Backend data capture endpoints will need to run elsewhere.
-
-## Environment Variables
-
-For Vapi and live dashboard sync, configure these in Hostinger:
+1. Create a Supabase project.
+2. Run the SQL in `supabase/schema.sql` from the Supabase SQL editor.
+3. Copy `.env.example` to `.env.local`.
+4. Add:
 
 ```bash
 VITE_VAPI_PUBLIC_KEY=f80cea3b-d773-4f2c-88a8-8d7c87cd57ee
@@ -67,40 +43,54 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ```
 
-`VITE_DASHBOARD_EVENTS_URL` is optional. Use it only when the standalone portal must post browser events directly to a separate dashboard API. In production, shared Supabase persistence is preferred.
-
-Do not commit `.env.local` or real server-side keys.
+The browser uses only the `VITE_` values for Vapi calls and Realtime updates. The Express API uses `SUPABASE_SERVICE_ROLE_KEY` to store calls, transcripts, and leads securely on the server side.
 
 ## Backend Endpoints
+
+The portal and dashboard use these endpoints for live records:
 
 ```text
 GET  /api/health
 GET  /api/call-records
 POST /api/call-events
 POST /api/vapi/lead-tool
+PATCH /api/calls/:id/status
+POST /api/email-updates
 ```
 
 ## Vapi Lead Capture Tool
 
-For the production assistant, set the `submit_lead` tool Server URL to the deployed dashboard backend whenever possible:
+Set the `submit_lead` tool Server URL to the deployed dashboard endpoint:
 
 ```text
 https://your-dashboard-domain.com/api/vapi/lead-tool
 ```
 
-This portal also exposes `/api/vapi/lead-tool`, but the dashboard endpoint is preferred because it writes directly to the Lead Management Portal.
+The endpoint accepts the Vapi tool payload and stores:
 
-## Supabase
+- `customer_name` as lead name
+- `company_name` inside the call lead details
+- `location` as lead location
+- `contact_number` as phone
+- `email_id` as email
+- `requirement_summary` as requirement and call summary
 
-Run `supabase/schema.sql` in the Supabase SQL editor. Use the same Supabase project and tables as the EthikCorp dashboard so calls from this portal appear in the dashboard automatically.
+## Email Updates
 
-Required tables:
+To send real emails from the deployed backend, add SMTP credentials:
 
-- `calls`
-- `transcripts`
-- `leads`
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=notifications@your-domain.com
+SMTP_PASS=your-smtp-password-or-app-password
+EMAIL_FROM="EthikCorp Agent <notifications@your-domain.com>"
+```
 
-## Build Check
+When those variables are missing, the dashboard still builds the message preview and stores recipient emails locally, but the server will not send external email messages.
+
+## Build
 
 ```bash
 npm run build

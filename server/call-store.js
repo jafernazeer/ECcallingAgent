@@ -166,6 +166,38 @@ function deriveLeadDetails(call, transcriptRows = []) {
   };
 }
 
+async function upsertCapturedLead(callId, lead, source, at = nowIso()) {
+  const client = requireSupabase();
+  if (!client || !lead) return;
+
+  const timestamp = normalizeDate(at) || nowIso();
+  await client
+    .from("leads")
+    .upsert({
+      id: `lead-${callId}`,
+      call_id: callId,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+      place: lead.place,
+      requirement: lead.requirement,
+      status: "Open",
+      source: source || "submit_lead",
+      last_contact_at: timestamp,
+      updated_at: nowIso(),
+    }, { onConflict: "id" });
+
+  await client
+    .from("calls")
+    .update({
+      lead,
+      summary: lead.requirement,
+      workflow_status: "Open",
+      updated_at: nowIso(),
+    })
+    .eq("id", callId);
+}
+
 function mapCallRow(row) {
   const transcript = [...(row.transcripts || [])]
     .sort((a, b) => new Date(a.spoken_at).getTime() - new Date(b.spoken_at).getTime())
@@ -254,38 +286,6 @@ async function upsertCallLead(callId) {
   await client
     .from("calls")
     .update({ lead, updated_at: nowIso() })
-    .eq("id", callId);
-}
-
-async function upsertCapturedLead(callId, lead, source, at = nowIso()) {
-  const client = requireSupabase();
-  if (!client || !lead) return;
-
-  const timestamp = normalizeDate(at) || nowIso();
-  await client
-    .from("leads")
-    .upsert({
-      id: `lead-${callId}`,
-      call_id: callId,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email,
-      place: lead.place,
-      requirement: lead.requirement,
-      status: "Open",
-      source: source || "submit_lead",
-      last_contact_at: timestamp,
-      updated_at: nowIso(),
-    }, { onConflict: "id" });
-
-  await client
-    .from("calls")
-    .update({
-      lead,
-      summary: lead.requirement,
-      workflow_status: "Open",
-      updated_at: nowIso(),
-    })
     .eq("id", callId);
 }
 

@@ -3,21 +3,39 @@ import { fileURLToPath } from "node:url";
 import https from "node:https";
 import "./load-env.js";
 import express from "express";
+import nodemailer from "nodemailer";
 import { createServer as createViteServer } from "vite";
 import {
   getPersistenceMode,
   listCallRecords,
   saveCallEvent,
+  updateWorkflowStatus,
 } from "./call-store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 5173);
 const hmrPort = Number(process.env.HMR_PORT || port + 20000);
+const smtpHost = process.env.SMTP_HOST || "";
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpSecure = String(process.env.SMTP_SECURE || "").toLowerCase() === "true";
+const smtpUser = process.env.SMTP_USER || "";
+const smtpPass = process.env.SMTP_PASS || "";
+const emailFrom = process.env.EMAIL_FROM || smtpUser;
 const vapiApiHost = process.env.VAPI_API_HOST || "api.vapi.ai";
 const vapiApiAddress = process.env.VAPI_API_ADDRESS || "104.18.24.64";
 
 const app = express();
+app.use((request, response, next) => {
+  response.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
+  if (request.method === "OPTIONS") {
+    response.sendStatus(204);
+    return;
+  }
+  next();
+});
 app.use(express.json());
 
 function proxyVapiApi(request, response) {
@@ -133,6 +151,30 @@ function getVapiCallId(payload) {
     || "";
 }
 
+function normalizeEmail(value) {
+  const trimmed = String(value || "").trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : "";
+}
+
+async function sendEmailSummary(recipients, subject, text) {
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: smtpUser && smtpPass ? {
+      user: smtpUser,
+      pass: smtpPass,
+    } : undefined,
+  });
+
+  return transporter.sendMail({
+    from: emailFrom,
+    to: recipients,
+    subject,
+    text,
+  });
+}
+
 app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
@@ -193,6 +235,57 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
 
 app.use("/api/vapi", proxyVapiApi);
 
+app.post("/api/email-updates", async (request, response) => {
+  try {
+    const recipients = Array.isArray(request.body?.recipients) ? request.body.recipients : [];
+    const subject = String(request.body?.subject || "EthikCorp Agent call summary").trim();
+    const message = String(request.body?.message || "").trim();
+    const normalizedRecipients = [...new Set(recipients.map(normalizeEmail).filter(Boolean))];
+
+    if (!normalizedRecipients.length) {
+      response.status(400).json({ ok: false, error: "At least one valid email recipient is required." });
+      return;
+    }
+
+    if (!message) {
+      response.status(400).json({ ok: false, error: "Email message cannot be empty." });
+      return;
+    }
+
+    if (!smtpHost || !emailFrom) {
+      response.json({
+        ok: true,
+        configured: false,
+        sent: 0,
+        recipients: normalizedRecipients,
+      });
+      return;
+    }
+
+    const result = await sendEmailSummary(normalizedRecipients, subject, message);
+    response.json({
+      ok: true,
+      configured: true,
+      sent: normalizedRecipients.length,
+      recipients: normalizedRecipients,
+      messageId: result.messageId || "",
+    });
+  } catch (error) {
+    sendApiError(response, error);
+  }
+});
+
+app.patch("/api/calls/:id/status", async (request, response) => {
+  try {
+    response.json({
+      ok: true,
+      ...(await updateWorkflowStatus(request.params.id, request.body?.workflowStatus)),
+    });
+  } catch (error) {
+    sendApiError(response, error);
+  }
+});
+
 const vite = await createViteServer({
   root,
   server: { middlewareMode: true, host: "0.0.0.0", hmr: { port: hmrPort } },
@@ -202,5 +295,5 @@ const vite = await createViteServer({
 app.use(vite.middlewares);
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`EthikCorp Agent test portal running at http://localhost:${port}/`);
+  console.log(`EthikCorp Agent dashboard running at http://localhost:${port}/`);
 });
