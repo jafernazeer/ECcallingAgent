@@ -1,7 +1,7 @@
 :root {
   font-family: "Century Gothic", "Aptos", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #071429;
-  background: #f7fbff;
+  background: #f5f9ff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -10,6 +10,12 @@
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #f5f9ff;
 }
 
 body {
@@ -25,106 +31,167 @@ select {
   font: inherit;
 }
 
-button {
+button,
+a {
   -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
 }
 
 .portal-page {
   min-height: 100vh;
-  padding: 32px;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  padding: 28px;
+  overflow: auto;
   background:
     linear-gradient(rgba(50, 90, 159, 0.055) 1px, transparent 1px),
     linear-gradient(90deg, rgba(50, 90, 159, 0.055) 1px, transparent 1px),
-    radial-gradient(circle at 72% 18%, rgba(37, 169, 218, 0.20), transparent 34%),
-    radial-gradient(circle at 18% 82%, rgba(50, 90, 159, 0.16), transparent 30%),
-    #f7fbff;
-  background-size: 28px 28px, 28px 28px, auto, auto, auto;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(238, 247, 255, 0.86) 52%, rgba(231, 246, 252, 0.78) 100%),
+    #f5f9ff;
+  background-size: 26px 26px, 26px 26px, auto, auto;
 }
 
 .portal-shell {
-  width: min(1080px, 100%);
-  min-height: min(720px, calc(100vh - 64px));
+  width: min(1040px, 100%);
+  min-height: min(700px, calc(100vh - 56px));
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 40px;
+  gap: 26px;
 }
 
 .portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 13px 18px;
+  gap: 14px;
+  width: min(680px, 100%);
+  justify-self: center;
+  padding: 10px 12px 10px 16px;
   border: 1px solid rgba(50, 90, 159, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 20px 50px rgba(28, 64, 122, 0.10);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 46px rgba(28, 64, 122, 0.10);
+  backdrop-filter: blur(20px);
+}
+
+.portal-header a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .portal-header img {
-  height: 34px;
   width: auto;
+  height: 31px;
   object-fit: contain;
 }
 
 .portal-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(50, 90, 159, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
   color: #325a9f;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(50, 90, 159, 0.08);
+}
+
+.portal-header span.live {
+  border-color: rgba(5, 168, 121, 0.18);
+  color: #087a5a;
+  background: rgba(5, 168, 121, 0.08);
 }
 
 .portal-content {
   display: grid;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 440px);
+  grid-template-columns: minmax(320px, 0.84fr) minmax(340px, 390px);
   align-items: center;
   justify-content: center;
-  gap: clamp(36px, 7vw, 92px);
+  gap: 58px;
 }
 
 .portal-copy {
-  max-width: 480px;
+  max-width: 500px;
 }
 
 .kicker {
   display: inline-flex;
-  width: fit-content;
   align-items: center;
   gap: 8px;
-  margin-bottom: 18px;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(37, 169, 218, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
   color: #325a9f;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
+  box-shadow: 0 12px 28px rgba(37, 169, 218, 0.08);
 }
 
 .kicker::before {
   content: "";
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: #25a9da;
-  box-shadow: 0 0 0 6px rgba(37, 169, 218, 0.14);
+  box-shadow: 0 0 0 5px rgba(37, 169, 218, 0.13);
 }
 
 .portal-copy h1 {
-  max-width: 12ch;
-  margin: 0;
+  max-width: 10ch;
+  margin: 18px 0 0;
   color: #071429;
-  font-size: clamp(44px, 7vw, 76px);
-  line-height: 0.96;
+  font-size: 64px;
+  line-height: 0.98;
   letter-spacing: 0;
 }
 
 .portal-copy p {
-  max-width: 440px;
-  margin: 22px 0 0;
-  color: #536b91;
-  font-size: 17px;
-  line-height: 1.7;
+  max-width: 438px;
+  margin: 20px 0 0;
+  color: #4f668a;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.portal-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.portal-benefits span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(50, 90, 159, 0.11);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #21395f;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(28, 64, 122, 0.06);
+}
+
+.portal-benefits svg {
+  color: #25a9da;
 }
 
 .portal-status {
@@ -132,15 +199,15 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-top: 28px;
+  margin-top: 22px;
   padding: 10px 14px;
   border: 1px solid rgba(50, 90, 159, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.76);
   color: #325a9f;
   font-size: 13px;
   font-weight: 900;
-  box-shadow: 0 16px 38px rgba(28, 64, 122, 0.10);
+  box-shadow: 0 16px 38px rgba(28, 64, 122, 0.09);
 }
 
 .portal-status span {
@@ -156,33 +223,44 @@ button {
 }
 
 .agent-phone {
-  width: min(390px, 100%);
+  width: min(372px, 100%);
   justify-self: center;
-  padding: 13px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 42px;
-  background: linear-gradient(145deg, #193866, #071429);
-  box-shadow: 0 36px 80px rgba(14, 43, 91, 0.30);
+  background: linear-gradient(155deg, #12294d 0%, #071429 100%);
+  box-shadow: 0 34px 76px rgba(14, 43, 91, 0.28);
+}
+
+.agent-phone.is-live {
+  box-shadow: 0 34px 76px rgba(14, 43, 91, 0.28), 0 0 0 7px rgba(5, 168, 121, 0.08);
+}
+
+.agent-phone.has-error {
+  box-shadow: 0 34px 76px rgba(14, 43, 91, 0.24), 0 0 0 7px rgba(217, 77, 77, 0.08);
 }
 
 .phone-speaker {
-  width: 78px;
+  width: 74px;
   height: 6px;
-  margin: 9px auto 13px;
+  margin: 9px auto 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.34);
 }
 
 .phone-screen {
-  min-height: 604px;
+  min-height: 560px;
   display: grid;
   grid-template-rows: auto 1fr auto auto;
-  gap: 26px;
-  padding: 30px 24px 24px;
-  border-radius: 31px;
-  background:
-    radial-gradient(circle at 50% 28%, rgba(37, 169, 218, 0.22), transparent 32%),
-    linear-gradient(180deg, #ffffff 0%, #edf6ff 100%);
+  gap: 20px;
+  padding: 26px 20px 20px;
+  border-radius: 32px;
   overflow: hidden;
+  background:
+    linear-gradient(rgba(50, 90, 159, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(50, 90, 159, 0.055) 1px, transparent 1px),
+    linear-gradient(180deg, #ffffff 0%, #eef7ff 100%);
+  background-size: 22px 22px, 22px 22px, auto;
 }
 
 .phone-screen header {
@@ -192,21 +270,26 @@ button {
 .phone-screen header span {
   display: block;
   color: #071429;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 900;
 }
 
 .phone-screen header small {
-  display: block;
-  margin-top: 6px;
-  color: #25a9da;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin-top: 7px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgba(37, 169, 218, 0.10);
+  color: #1d6a94;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .phone-orb {
-  width: 174px;
-  height: 174px;
+  width: 156px;
+  height: 156px;
   align-self: center;
   justify-self: center;
   display: grid;
@@ -214,7 +297,7 @@ button {
   border-radius: 50%;
   color: #ffffff;
   background: linear-gradient(145deg, #325a9f, #25a9da);
-  box-shadow: 0 24px 55px rgba(37, 169, 218, 0.30), inset 0 -18px 28px rgba(4, 18, 40, 0.16);
+  box-shadow: 0 24px 55px rgba(37, 169, 218, 0.28), inset 0 -18px 28px rgba(4, 18, 40, 0.16);
 }
 
 .phone-orb.connected {
@@ -226,30 +309,33 @@ button {
 }
 
 @keyframes agentPulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
-    box-shadow: 0 24px 55px rgba(37, 169, 218, 0.30), 0 0 0 0 rgba(37, 169, 218, 0.24);
+    box-shadow: 0 24px 55px rgba(37, 169, 218, 0.28), 0 0 0 0 rgba(37, 169, 218, 0.24);
   }
+
   50% {
-    transform: scale(1.035);
-    box-shadow: 0 30px 64px rgba(37, 169, 218, 0.34), 0 0 0 18px rgba(37, 169, 218, 0.08);
+    transform: scale(1.03);
+    box-shadow: 0 30px 64px rgba(37, 169, 218, 0.32), 0 0 0 17px rgba(37, 169, 218, 0.08);
   }
 }
 
 .phone-readout {
   align-self: end;
-  min-height: 128px;
-  padding: 18px;
+  min-height: 118px;
+  padding: 16px;
   border: 1px solid rgba(50, 90, 159, 0.12);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 40px rgba(28, 64, 122, 0.10);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 40px rgba(28, 64, 122, 0.09);
+  backdrop-filter: blur(12px);
 }
 
 .phone-readout strong {
   display: block;
   color: #071429;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
 }
 
@@ -257,7 +343,7 @@ button {
   margin: 8px 0 0;
   color: #536b91;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .phone-readout small {
@@ -275,22 +361,21 @@ button {
 .phone-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .phone-actions button {
-  min-height: 52px;
+  min-height: 54px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #325a9f;
   color: #ffffff;
   font-size: 14px;
   font-weight: 900;
-  cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
 
@@ -299,7 +384,7 @@ button {
 }
 
 .phone-actions button:last-child {
-  background: #eef5fc;
+  background: #eaf3fb;
   color: #325a9f;
 }
 
@@ -307,31 +392,41 @@ button {
   transform: translateY(-1px);
 }
 
+.phone-actions button:focus-visible {
+  outline: 3px solid rgba(37, 169, 218, 0.28);
+  outline-offset: 3px;
+}
+
 .phone-actions button:disabled {
-  opacity: 0.48;
   cursor: not-allowed;
+  opacity: 0.48;
 }
 
 @media (max-width: 860px) {
   .portal-page {
-    padding: 18px;
     align-items: start;
-    overflow: auto;
+    padding: max(14px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
   }
 
   .portal-shell {
     min-height: auto;
-    gap: 26px;
+    gap: 18px;
   }
 
   .portal-content {
     grid-template-columns: 1fr;
-    gap: 26px;
+    gap: 18px;
   }
 
   .portal-copy {
-    text-align: center;
+    max-width: 420px;
     justify-self: center;
+    text-align: center;
+    order: 1;
+  }
+
+  .agent-phone {
+    order: 2;
   }
 
   .kicker,
@@ -341,49 +436,108 @@ button {
   }
 
   .portal-copy h1 {
-    max-width: 10ch;
-    margin: 0 auto;
-    font-size: clamp(38px, 13vw, 58px);
+    max-width: 12ch;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 42px;
+    line-height: 1.02;
   }
 
   .portal-copy p {
-    margin-left: auto;
-    margin-right: auto;
-    font-size: 15px;
+    max-width: 360px;
+    margin: 14px auto 0;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .portal-benefits {
+    justify-content: center;
+    margin-top: 14px;
+  }
+
+  .portal-status {
+    margin-top: 14px;
   }
 
   .phone-screen {
-    min-height: 560px;
+    min-height: 510px;
   }
 }
 
 @media (max-width: 460px) {
   .portal-page {
-    padding: 12px;
+    padding-left: 10px;
+    padding-right: 10px;
   }
 
   .portal-header {
-    padding: 11px 14px;
+    padding: 9px 9px 9px 13px;
   }
 
   .portal-header img {
-    height: 28px;
+    height: 27px;
+  }
+
+  .portal-header span {
+    min-height: 31px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .portal-copy h1 {
+    font-size: 34px;
+  }
+
+  .portal-benefits {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: min(310px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .portal-benefits span {
+    justify-content: center;
+    min-height: 36px;
   }
 
   .agent-phone {
+    width: min(340px, 100%);
+    padding: 9px;
     border-radius: 34px;
-    padding: 10px;
+  }
+
+  .phone-speaker {
+    margin-bottom: 9px;
   }
 
   .phone-screen {
-    min-height: 520px;
-    padding: 24px 18px 18px;
+    min-height: 478px;
+    gap: 15px;
+    padding: 22px 16px 16px;
     border-radius: 27px;
   }
 
+  .phone-screen header span {
+    font-size: 19px;
+  }
+
   .phone-orb {
-    width: 142px;
-    height: 142px;
+    width: 126px;
+    height: 126px;
+  }
+
+  .phone-readout {
+    min-height: 108px;
+    padding: 14px;
+  }
+
+  .phone-readout strong {
+    font-size: 16px;
+  }
+
+  .phone-readout p {
+    font-size: 12px;
   }
 
   .phone-actions {

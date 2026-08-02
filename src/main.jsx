@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import Vapi from "@vapi-ai/web";
-import { Phone, PhoneCall, PhoneOff } from "lucide-react";
+import { CheckCircle2, Mic2, Phone, PhoneCall, PhoneOff, Radio, ShieldCheck } from "lucide-react";
 import "./styles.css";
 
 const CALL_SOURCE = "Client agent test portal";
@@ -236,14 +236,16 @@ function AgentPhone({ call }) {
   const connected = call.status === "connected";
   const connecting = call.status === "connecting";
   const hasError = call.status === "error";
+  const statusLabel = connected ? "Live call active" : connecting ? "Connecting" : hasError ? "Attention needed" : "Ready to test";
+  const readoutTitle = connected ? "Speak now" : connecting ? "Starting call" : hasError ? "Call not connected" : "Ready for your test call";
 
   return (
-    <article className="agent-phone" aria-label="EthikCorp Agent test phone">
+    <article className={`agent-phone ${connected ? "is-live" : ""} ${hasError ? "has-error" : ""}`} aria-label="EthikCorp Agent test phone">
       <div className="phone-speaker" />
       <div className="phone-screen">
         <header>
-          <span>EthikCorp Agent</span>
-          <small>{connected ? "Live call active" : connecting ? "Connecting" : hasError ? "Attention needed" : "Ready to test"}</small>
+          <span>EC Calling Agent</span>
+          <small>{statusLabel}</small>
         </header>
 
         <div className={`phone-orb ${connected ? "connected" : ""} ${hasError ? "error" : ""}`}>
@@ -251,7 +253,7 @@ function AgentPhone({ call }) {
         </div>
 
         <section className="phone-readout" aria-live="polite">
-          <strong>{connected ? "Speak now" : connecting ? "Starting call" : hasError ? "Call not connected" : "Click Start Call"}</strong>
+          <strong>{readoutTitle}</strong>
           <p>{call.message}</p>
           {call.callStartedAt && <small>Session started {new Date(call.callStartedAt).toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit" })}</small>}
         </section>
@@ -275,22 +277,34 @@ function AgentPhone({ call }) {
 
 function App() {
   const call = useVapiCall();
+  const connected = call.status === "connected";
+  const connecting = call.status === "connecting";
 
   return (
     <main className="portal-page">
       <section className="portal-shell">
         <header className="portal-header">
-          <img src="/brand/ethikcorp-logo-blue.png" alt="EthikCorp" />
-          <span>Agent test portal</span>
+          <a href="/" aria-label="EthikCorp agent test portal home">
+            <img src="/brand/ethikcorp-logo-blue.png" alt="EthikCorp" />
+          </a>
+          <span className={connected ? "live" : ""}>
+            <Radio size={14} />
+            {connected ? "Live" : connecting ? "Connecting" : "Agent test portal"}
+          </span>
         </header>
 
         <div className="portal-content">
           <article className="portal-copy">
             <span className="kicker">EthikCorp Agent</span>
-            <h1>Test the EC calling agent live</h1>
+            <h1>Test the EC calling agent live.</h1>
             <p>
-              Start a browser call, allow microphone access, and speak naturally. Captured call details are sent to the EthikCorp dashboard.
+              Start a browser call, allow microphone access, and speak naturally. Captured lead details sync to the EthikCorp dashboard.
             </p>
+            <div className="portal-benefits" aria-label="Portal capabilities">
+              <span><Mic2 size={16} /> Browser voice test</span>
+              <span><CheckCircle2 size={16} /> Lead capture sync</span>
+              <span><ShieldCheck size={16} /> Secure dashboard flow</span>
+            </div>
             <div className="portal-status">
               <span className={call.status === "connected" ? "live" : ""} />
               {call.status === "connected" ? "Agent is live" : call.status === "connecting" ? "Connecting" : "Ready to test"}
