@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.calls (
   id text primary key,
-  vapi_call_id text,
+  external_call_id text,
   channel text not null default 'Voice',
   source text not null default 'Phone widget',
   caller_number text,

@@ -1,5 +1,6 @@
 import "./load-env.js";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 
 const MAX_CALL_RECORDS = 80;
 const WORKFLOW_STATUSES = ["Open", "Follow up required", "Closed"];
@@ -9,8 +10,10 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = supabaseUrl && serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket },
   })
   : null;
+const localCallRecords = [];
 
 export function getPersistenceMode() {
   return supabase ? "supabase" : "local";
@@ -33,6 +36,29 @@ function getWorkflowStatus(status) {
 function cleanText(value, fallback = "") {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text || fallback;
+}
+
+function parseMaybeJson(value) {
+  if (!value || typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeCapturedLead(value) {
+  const data = parseMaybeJson(value);
+  if (!data || typeof data !== "object") return null;
+  const lead = {
+    name: cleanText(data.customer_name || data.customerName || data.name, "Caller"),
+    company: cleanText(data.company_name || data.companyName || data.company, "Not captured"),
+    phone: cleanText(data.contact_number || data.contactNumber || data.phone, "Browser call"),
+    email: cleanText(data.email_id || data.emailId || data.email, "Not provided"),
+    place: cleanText(data.location || data.place, "Not captured"),
+    requirement: cleanText(data.requirement_summary || data.requirementSummary || data.requirement, "Live EthikCorp Agent inquiry"),
+  };
+  return lead.name || lead.company || lead.phone || lead.email || lead.place || lead.requirement ? lead : null;
 }
 
 function normalizeTranscriptEntry(entry) {
@@ -92,7 +118,7 @@ function extractRequirement(entries, call) {
     if (requirement.length > 18 && !/@/.test(entry.text)) return requirement;
   }
 
-  return call?.summary || call?.lead?.requirement || "Live EthikCorp Agent inquiry";
+  return call?.lead?.requirement || call?.summary || "Live EthikCorp Agent inquiry";
 }
 
 function extractPlace(entries, body, call) {
@@ -132,6 +158,7 @@ function deriveLeadDetails(call, transcriptRows = []) {
 
   return {
     name: name || "Caller",
+    company: call?.lead?.company || "Not captured",
     phone,
     email,
     place: extractPlace(entries, body, call),
@@ -152,7 +179,7 @@ function mapCallRow(row) {
 
   return {
     id: row.id,
-    vapiCallId: row.vapi_call_id,
+    externalCallId: row.external_call_id,
     startedAt: row.started_at || row.created_at,
     endedAt: row.ended_at,
     status: row.status || "connecting",
@@ -175,7 +202,7 @@ function requireSupabase() {
 
 export async function listCallRecords() {
   const client = requireSupabase();
-  if (!client) return { persistence: "local", records: [] };
+  if (!client) return { persistence: "local", records: localCallRecords.slice(0, MAX_CALL_RECORDS) };
 
   const { data, error } = await client
     .from("calls")
@@ -230,9 +257,49 @@ async function upsertCallLead(callId) {
     .eq("id", callId);
 }
 
+async function upsertCapturedLead(callId, lead, source, at = nowIso()) {
+  const client = requireSupabase();
+  if (!client || !lead) return;
+
+  const timestamp = normalizeDate(at) || nowIso();
+  await client
+    .from("leads")
+    .upsert({
+      id: `lead-${callId}`,
+      call_id: callId,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+      place: lead.place,
+      requirement: lead.requirement,
+      status: "Open",
+      source: source || "submit_lead",
+      last_contact_at: timestamp,
+      updated_at: nowIso(),
+    }, { onConflict: "id" });
+
+  await client
+    .from("calls")
+    .update({
+      lead,
+      summary: lead.requirement,
+      workflow_status: "Open",
+      updated_at: nowIso(),
+    })
+    .eq("id", callId);
+}
+
 export async function updateWorkflowStatus(callId, workflowStatus) {
   const client = requireSupabase();
-  if (!client) return { persistence: "local", updated: false };
+  if (!client) {
+    const status = getWorkflowStatus(workflowStatus);
+    const record = localCallRecords.find((item) => item.id === callId);
+    if (record) {
+      record.workflowStatus = status;
+      if (record.lead) record.lead.status = status;
+    }
+    return { persistence: "local", updated: Boolean(record) };
+  }
 
   const status = getWorkflowStatus(workflowStatus);
   const { error } = await client
@@ -251,14 +318,14 @@ export async function updateWorkflowStatus(callId, workflowStatus) {
 
 export async function saveCallEvent(event, rawPayload = null) {
   const client = requireSupabase();
-  if (!client) return { persistence: "local", saved: false };
+  if (!client) return saveLocalCallEvent(event);
   if (!event?.sessionId) return { persistence: "supabase", saved: false };
 
   const callId = event.sessionId;
   const currentTime = nowIso();
   const callPatch = {
     id: callId,
-    vapi_call_id: event.vapiCallId || event.callId || null,
+    external_call_id: event.externalCallId || event.callId || null,
     channel: event.channel || "Voice",
     source: event.source || "Phone widget",
     updated_at: currentTime,
@@ -302,6 +369,19 @@ export async function saveCallEvent(event, rawPayload = null) {
     });
   }
 
+  if (event.type === "lead-captured") {
+    const lead = normalizeCapturedLead(event.lead || event.arguments || event);
+    if (lead) {
+      Object.assign(callPatch, {
+        started_at: normalizeDate(event.at) || currentTime,
+        status: event.status || "connected",
+        workflow_status: "Open",
+        summary: lead.requirement,
+        lead,
+      });
+    }
+  }
+
   await client
     .from("calls")
     .upsert(callPatch, { onConflict: "id" });
@@ -325,194 +405,108 @@ export async function saveCallEvent(event, rawPayload = null) {
     await upsertCallLead(callId);
   }
 
+  if (event.type === "lead-captured") {
+    const lead = normalizeCapturedLead(event.lead || event.arguments || event);
+    if (lead) await upsertCapturedLead(callId, lead, event.source || "submit_lead", event.at || currentTime);
+  }
+
   return { persistence: "supabase", saved: true };
 }
 
-function pickVapiMessage(payload) {
-  return payload?.message || payload || {};
-}
+function saveLocalCallEvent(event) {
+  if (!event?.sessionId) return { persistence: "local", saved: false };
 
-function getVapiCallId(payload) {
-  const message = pickVapiMessage(payload);
-  return message?.call?.id
-    || message?.callId
-    || payload?.call?.id
-    || payload?.callId
-    || payload?.id
-    || null;
-}
-
-function parseToolArguments(value) {
-  if (!value) return {};
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return {};
-    }
-  }
-  return typeof value === "object" ? value : {};
-}
-
-function extractSubmitLeadToolCalls(payload) {
-  const message = pickVapiMessage(payload);
-  const toolCalls = message?.toolCalls
-    || message?.tool_calls
-    || payload?.toolCalls
-    || payload?.tool_calls
-    || [];
-
-  return (Array.isArray(toolCalls) ? toolCalls : [toolCalls])
-    .filter(Boolean)
-    .map((toolCall) => {
-      const functionName = toolCall?.function?.name || toolCall?.name || toolCall?.functionName;
-      return {
-        id: toolCall?.id || toolCall?.toolCallId || `submit-lead-${Date.now()}`,
-        name: functionName,
-        args: parseToolArguments(toolCall?.function?.arguments || toolCall?.arguments || toolCall?.parameters),
-      };
-    })
-    .filter((toolCall) => toolCall.name === "submit_lead");
-}
-
-function normalizeSubmittedLead(args) {
-  return {
-    name: cleanText(args.customer_name, "Caller"),
-    company: cleanText(args.company_name, "Not provided"),
-    place: cleanText(args.location, "Not captured"),
-    requirement: cleanText(args.requirement_summary, "Live EthikCorp Agent inquiry"),
-    phone: cleanText(args.contact_number, "Not provided"),
-    email: cleanText(args.email_id, "Not provided"),
-    source: "Vapi Lead Tool",
-    score: 96,
-  };
-}
-
-async function upsertSubmittedLead(callId, lead, rawPayload = null) {
-  const client = requireSupabase();
-  if (!client) return { persistence: "local", saved: false };
-
+  const existing = localCallRecords.find((record) => record.id === event.sessionId);
   const currentTime = nowIso();
-  await client
-    .from("calls")
-    .upsert({
-      id: callId,
-      vapi_call_id: callId,
-      channel: "Voice",
-      source: "Vapi Lead Tool",
-      started_at: currentTime,
-      status: "ended",
-      workflow_status: "Open",
-      summary: lead.requirement,
-      agent_joined: true,
-      lead,
-      raw: rawPayload,
-      updated_at: currentTime,
-    }, { onConflict: "id" });
+  const base = existing || {
+    id: event.sessionId,
+    externalCallId: event.externalCallId || event.callId || null,
+    startedAt: normalizeDate(event.startedAt) || currentTime,
+    endedAt: null,
+    status: "connecting",
+    channel: event.channel || "Voice",
+    source: event.source || "Phone widget",
+    agentJoined: false,
+    workflowStatus: "Open",
+    transcript: [],
+    summary: "Live EthikCorp Agent call in progress.",
+    lead: null,
+  };
+  const updated = { ...base, transcript: [...(base.transcript || [])] };
 
-  await client
-    .from("leads")
-    .upsert({
-      id: `lead-${callId}`,
-      call_id: callId,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email,
-      place: lead.place,
-      requirement: lead.requirement,
-      status: "Open",
-      source: lead.source,
-      last_contact_at: currentTime,
-      updated_at: currentTime,
-    }, { onConflict: "id" });
-
-  return { persistence: "supabase", saved: true };
-}
-
-export async function saveVapiLeadTool(payload) {
-  const toolCalls = extractSubmitLeadToolCalls(payload);
-  if (!toolCalls.length) {
-    return {
-      persistence: getPersistenceMode(),
-      saved: false,
-      results: [],
-      reason: "missing_submit_lead_tool_call",
-    };
-  }
-
-  const callIdBase = getVapiCallId(payload) || `vapi-lead-${Date.now()}`;
-  const savedLeads = [];
-  const results = [];
-
-  for (const [index, toolCall] of toolCalls.entries()) {
-    const callId = toolCalls.length === 1 ? callIdBase : `${callIdBase}-${index + 1}`;
-    const lead = normalizeSubmittedLead(toolCall.args);
-    const saveResult = await upsertSubmittedLead(callId, lead, payload);
-    savedLeads.push({ callId, lead, ...saveResult });
-    results.push({
-      toolCallId: toolCall.id,
-      result: saveResult.saved
-        ? "Lead submitted to the EthikCorp Lead Management Portal."
-        : "Lead details received. Dashboard database is not configured yet.",
+  if (event.type === "call-created") {
+    Object.assign(updated, {
+      startedAt: normalizeDate(event.startedAt) || updated.startedAt,
+      endedAt: null,
+      status: "connecting",
+      agentJoined: false,
+      summary: "Live EthikCorp Agent call in progress.",
     });
   }
 
-  return {
-    persistence: savedLeads[0]?.persistence || getPersistenceMode(),
-    saved: savedLeads.some((item) => item.saved),
-    leads: savedLeads,
-    results,
-  };
-}
-
-export async function saveVapiWebhook(payload) {
-  const message = pickVapiMessage(payload);
-  const type = String(message?.type || payload?.type || "").toLowerCase();
-  const callId = getVapiCallId(payload);
-  if (!callId) return { persistence: getPersistenceMode(), saved: false, reason: "missing_call_id" };
-
-  const base = {
-    sessionId: callId,
-    vapiCallId: callId,
-    source: "Vapi Server URL",
-    channel: "Voice",
-  };
-
-  if (type.includes("transcript")) {
-    const role = String(message?.role || message?.speaker || "").toLowerCase();
-    return saveCallEvent({
-      ...base,
-      type: "transcript",
-      speaker: role.includes("assistant") || role.includes("bot") || role.includes("agent") ? "AI Agent" : "Customer",
-      text: message?.transcript || message?.text || message?.content || "",
-      at: message?.timestamp || nowIso(),
-      final: String(message?.transcriptType || "").toLowerCase() !== "partial",
-      partial: String(message?.transcriptType || "").toLowerCase() === "partial",
-    }, payload);
+  if (event.type === "call-start") {
+    Object.assign(updated, {
+      startedAt: normalizeDate(event.startedAt) || updated.startedAt,
+      status: "connected",
+      agentJoined: true,
+    });
   }
 
-  if (type.includes("end-of-call-report") || type.includes("ended") || type.includes("call-end")) {
-    return saveCallEvent({
-      ...base,
-      type: "call-end",
-      endedAt: message?.endedAt || message?.call?.endedAt || nowIso(),
-      summary: message?.summary || message?.analysis?.summary || message?.artifact?.summary || "EthikCorp Agent call ended.",
-    }, payload);
+  if (event.type === "call-end") {
+    Object.assign(updated, {
+      endedAt: normalizeDate(event.endedAt) || currentTime,
+      status: "ended",
+      agentJoined: false,
+      summary: event.summary || event.message || "EthikCorp Agent call ended.",
+    });
   }
 
-  if (type.includes("status") || type.includes("call-start") || type.includes("started")) {
-    const status = String(message?.status || "").toLowerCase();
-    return saveCallEvent({
-      ...base,
-      type: status.includes("ended") ? "call-end" : "call-start",
-      startedAt: message?.startedAt || message?.call?.startedAt || nowIso(),
-      endedAt: message?.endedAt || message?.call?.endedAt || null,
-    }, payload);
+  if (event.type === "call-error") {
+    Object.assign(updated, {
+      endedAt: normalizeDate(event.endedAt) || currentTime,
+      status: "error",
+      agentJoined: false,
+      summary: event.message || "EthikCorp Agent call failed.",
+    });
   }
 
-  return saveCallEvent({
-    ...base,
-    type: "call-start",
-    startedAt: message?.call?.startedAt || nowIso(),
-  }, payload);
+  if (event.type === "lead-captured") {
+    const lead = normalizeCapturedLead(event.lead || event.arguments || event);
+    if (lead) {
+      Object.assign(updated, {
+        status: updated.status === "ended" ? updated.status : "connected",
+        summary: lead.requirement,
+        lead,
+      });
+    }
+  }
+
+  if (event.type === "transcript" && event.text?.trim()) {
+    const nextEntry = normalizeTranscriptEntry({
+      speaker: event.speaker || "Customer",
+      text: event.text,
+      at: event.at || currentTime,
+      final: event.final !== false,
+      partial: Boolean(event.partial),
+    });
+    const lastEntry = updated.transcript[updated.transcript.length - 1];
+    if (lastEntry?.partial && lastEntry.speaker === nextEntry.speaker) {
+      updated.transcript = [...updated.transcript.slice(0, -1), nextEntry];
+    } else if (!(lastEntry?.speaker === nextEntry.speaker && lastEntry?.text === nextEntry.text)) {
+      updated.transcript.push(nextEntry);
+    }
+    updated.lead = deriveLeadDetails(updated, updated.transcript);
+  }
+
+  if (event.type === "call-end" || event.type === "call-error") {
+    updated.lead = deriveLeadDetails(updated, updated.transcript);
+  }
+
+  const existingIndex = localCallRecords.findIndex((record) => record.id === updated.id);
+  if (existingIndex >= 0) localCallRecords.splice(existingIndex, 1);
+  localCallRecords.unshift(updated);
+  localCallRecords.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  localCallRecords.splice(MAX_CALL_RECORDS);
+
+  return { persistence: "local", saved: true };
 }
