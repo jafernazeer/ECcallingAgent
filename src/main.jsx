@@ -34,21 +34,29 @@ function isAgentGoodbye(text) {
   return AGENT_GOODBYE_PATTERN.test(String(text || ""));
 }
 
-function persistCallEvent(event) {
-  if (!event?.sessionId) return;
-  const payload = { source: CALL_SOURCE, ...event };
-  fetch("/api/call-events", {
+async function postCallEvent(url, payload) {
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }).catch(() => {});
+    keepalive: JSON.stringify(payload).length < 60000,
+  });
+  if (!response.ok) throw new Error(`Call event sync failed with ${response.status}`);
+  return response.json().catch(() => ({}));
+}
+
+async function persistCallEvent(event) {
+  if (!event?.sessionId) return [];
+  const payload = { source: CALL_SOURCE, ...event };
+  const requests = [postCallEvent("/api/call-events", payload)];
   if (DASHBOARD_EVENTS_URL) {
-    fetch(DASHBOARD_EVENTS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
+    requests.push(postCallEvent(DASHBOARD_EVENTS_URL, payload));
   }
+  const results = await Promise.allSettled(requests);
+  if (results.every((result) => result.status === "rejected")) {
+    throw results[0].reason;
+  }
+  return results;
 }
 
 function toErrorText(value) {
@@ -179,9 +187,43 @@ function useVapiCall() {
   const customerGoodbyePendingRef = useRef(false);
   const goodbyeTimeoutRef = useRef(null);
   const goodbyeFallbackRef = useRef(null);
+  const eventQueueRef = useRef(Promise.resolve());
+  const transcriptSnapshotRef = useRef([]);
+  const leadSnapshotRef = useRef(null);
 
   function emit(event) {
-    persistCallEvent({ source: CALL_SOURCE, ...event });
+    const queuedEvent = { source: CALL_SOURCE, ...event };
+    const nextTask = eventQueueRef.current
+      .catch(() => {})
+      .then(() => persistCallEvent(queuedEvent));
+    eventQueueRef.current = nextTask;
+    return nextTask;
+  }
+
+  function mergeTranscriptSnapshot(transcriptEvent) {
+    if (!transcriptEvent?.text?.trim()) return;
+    const nextEntry = {
+      speaker: transcriptEvent.speaker || "Customer",
+      text: transcriptEvent.text.trim(),
+      at: transcriptEvent.at || nowIso(),
+      final: transcriptEvent.final !== false,
+      partial: Boolean(transcriptEvent.partial),
+    };
+    const currentTranscript = transcriptSnapshotRef.current;
+    const lastEntry = currentTranscript[currentTranscript.length - 1];
+    const shouldReplacePartial = lastEntry?.partial && lastEntry.speaker === nextEntry.speaker;
+    const isDuplicate = lastEntry?.speaker === nextEntry.speaker && lastEntry?.text === nextEntry.text;
+
+    if (shouldReplacePartial) {
+      transcriptSnapshotRef.current = [...currentTranscript.slice(0, -1), nextEntry];
+    } else if (!isDuplicate) {
+      transcriptSnapshotRef.current = [...currentTranscript, nextEntry];
+    }
+  }
+
+  function resetCallSnapshots() {
+    transcriptSnapshotRef.current = [];
+    leadSnapshotRef.current = null;
   }
 
   function clearGoodbyeTimers() {
@@ -202,6 +244,8 @@ function useVapiCall() {
 
   function finishCall(sessionId, reason = "EthikCorp Agent call ended.", options = {}) {
     if (!sessionId) return;
+    const finalTranscript = transcriptSnapshotRef.current.filter((entry) => entry.text?.trim() && !entry.partial);
+    const finalLead = leadSnapshotRef.current;
     setStatus("idle");
     setMessage("Call ended. You can start another test any time.");
 
@@ -213,6 +257,8 @@ function useVapiCall() {
         endedAt: nowIso(),
         summary: reason,
         message: reason,
+        transcript: finalTranscript,
+        lead: finalLead,
         source: CALL_SOURCE,
       });
     }
@@ -226,6 +272,7 @@ function useVapiCall() {
     }
 
     cleanupCall(options.vapi);
+    resetCallSnapshots();
   }
 
   function handleGoodbyeTranscript(transcriptEvent, sessionId) {
@@ -255,6 +302,8 @@ function useVapiCall() {
     activeCallIdRef.current = sessionId;
     endedCallIdsRef.current.delete(sessionId);
     clearGoodbyeTimers();
+    resetCallSnapshots();
+    eventQueueRef.current = Promise.resolve();
     setCallStartedAt(startedAt);
     setStatus("connecting");
     setMessage("Requesting microphone access and connecting to EthikCorp Agent.");
@@ -272,10 +321,12 @@ function useVapiCall() {
     vapi.on("message", (vapiMessage) => {
       const transcriptEvent = extractTranscriptFromVapiMessage(vapiMessage);
       if (transcriptEvent) {
+        mergeTranscriptSnapshot(transcriptEvent);
         emit({ ...transcriptEvent, sessionId, source: CALL_SOURCE });
         handleGoodbyeTranscript(transcriptEvent, sessionId);
       }
       extractSubmitLeadEvents(vapiMessage).forEach((leadEvent) => {
+        leadSnapshotRef.current = leadEvent.lead;
         emit({ ...leadEvent, sessionId, source: CALL_SOURCE });
       });
     });

@@ -198,6 +198,40 @@ async function upsertCapturedLead(callId, lead, source, at = nowIso()) {
     .eq("id", callId);
 }
 
+async function insertTranscriptSnapshot(callId, transcript, currentTime = nowIso()) {
+  const client = requireSupabase();
+  if (!client || !Array.isArray(transcript) || !transcript.length) return;
+
+  const entries = transcript
+    .map(normalizeTranscriptEntry)
+    .filter((entry) => entry.text?.trim() && !entry.partial);
+  if (!entries.length) return;
+
+  const { data: existingRows } = await client
+    .from("transcripts")
+    .select("speaker,text")
+    .eq("call_id", callId);
+
+  const existingKeys = new Set((existingRows || []).map((row) => `${row.speaker || "Customer"}::${row.text || ""}`));
+  const rows = entries
+    .filter((entry) => {
+      const key = `${entry.speaker || "Customer"}::${entry.text || ""}`;
+      if (existingKeys.has(key)) return false;
+      existingKeys.add(key);
+      return true;
+    })
+    .map((entry) => ({
+      call_id: callId,
+      speaker: entry.speaker || "Customer",
+      text: entry.text.trim(),
+      is_final: entry.final !== false,
+      partial: false,
+      spoken_at: normalizeDate(entry.at) || currentTime,
+    }));
+
+  if (rows.length) await client.from("transcripts").insert(rows);
+}
+
 function mapCallRow(row) {
   const transcript = [...(row.transcripts || [])]
     .sort((a, b) => new Date(a.spoken_at).getTime() - new Date(b.spoken_at).getTime())
@@ -382,9 +416,24 @@ export async function saveCallEvent(event, rawPayload = null) {
     }
   }
 
+  if ((event.type === "call-end" || event.type === "call-error") && event.lead) {
+    const lead = normalizeCapturedLead(event.lead);
+    if (lead) {
+      Object.assign(callPatch, {
+        workflow_status: "Open",
+        summary: lead.requirement || callPatch.summary,
+        lead,
+      });
+    }
+  }
+
   await client
     .from("calls")
     .upsert(callPatch, { onConflict: "id" });
+
+  if ((event.type === "call-end" || event.type === "call-error") && Array.isArray(event.transcript)) {
+    await insertTranscriptSnapshot(callId, event.transcript, currentTime);
+  }
 
   if (event.type === "transcript" && event.text?.trim()) {
     await client
@@ -408,6 +457,11 @@ export async function saveCallEvent(event, rawPayload = null) {
   if (event.type === "lead-captured") {
     const lead = normalizeCapturedLead(event.lead || event.arguments || event);
     if (lead) await upsertCapturedLead(callId, lead, event.source || "submit_lead", event.at || currentTime);
+  }
+
+  if ((event.type === "call-end" || event.type === "call-error") && event.lead) {
+    const lead = normalizeCapturedLead(event.lead);
+    if (lead) await upsertCapturedLead(callId, lead, event.source || "final-call-sync", event.endedAt || currentTime);
   }
 
   return { persistence: "supabase", saved: true };
@@ -479,6 +533,28 @@ function saveLocalCallEvent(event) {
         lead,
       });
     }
+  }
+
+  if ((event.type === "call-end" || event.type === "call-error") && event.lead) {
+    const lead = normalizeCapturedLead(event.lead);
+    if (lead) {
+      Object.assign(updated, {
+        summary: lead.requirement || updated.summary,
+        lead,
+      });
+    }
+  }
+
+  if ((event.type === "call-end" || event.type === "call-error") && Array.isArray(event.transcript)) {
+    event.transcript
+      .map(normalizeTranscriptEntry)
+      .filter((entry) => entry.text?.trim() && !entry.partial)
+      .forEach((entry) => {
+        const exists = updated.transcript.some((currentEntry) => (
+          currentEntry.speaker === entry.speaker && currentEntry.text === entry.text
+        ));
+        if (!exists) updated.transcript.push(entry);
+      });
   }
 
   if (event.type === "transcript" && event.text?.trim()) {
