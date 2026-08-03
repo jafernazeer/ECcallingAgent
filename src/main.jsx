@@ -15,6 +15,25 @@ const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL
     ? "http://localhost:5172/api/call-events"
     : "");
 
+async function getVapiClientConfig() {
+  try {
+    const response = await fetch(`/api/vapi/client-config?ts=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Vapi config unavailable.");
+    const config = await response.json();
+    return {
+      publicKey: config.publicKey || VAPI_PUBLIC_KEY,
+      assistantId: config.assistantId || VAPI_ASSISTANT_ID,
+      apiBaseUrl: config.apiBaseUrl || VAPI_API_BASE_URL,
+    };
+  } catch {
+    return {
+      publicKey: VAPI_PUBLIC_KEY,
+      assistantId: VAPI_ASSISTANT_ID,
+      apiBaseUrl: VAPI_API_BASE_URL,
+    };
+  }
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -309,7 +328,8 @@ function useVapiCall() {
     setMessage("Requesting microphone access and connecting to EthikCorp Agent.");
     emit({ type: "call-created", sessionId, startedAt, channel: "Voice", source: CALL_SOURCE });
 
-    const vapi = new Vapi(VAPI_PUBLIC_KEY, VAPI_API_BASE_URL);
+    const vapiConfig = await getVapiClientConfig();
+    const vapi = new Vapi(vapiConfig.publicKey, vapiConfig.apiBaseUrl);
     vapiRef.current = vapi;
 
     vapi.on("call-start", () => {
@@ -343,7 +363,7 @@ function useVapiCall() {
     });
 
     try {
-      await vapi.start(VAPI_ASSISTANT_ID);
+      await vapi.start(vapiConfig.assistantId);
     } catch (error) {
       const errorMessage = getVapiErrorMessage(error);
       setStatus("error");

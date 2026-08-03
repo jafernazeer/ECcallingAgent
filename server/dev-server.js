@@ -24,6 +24,9 @@ const smtpPass = process.env.SMTP_PASS || "";
 const emailFrom = process.env.EMAIL_FROM || smtpUser;
 const vapiApiHost = process.env.VAPI_API_HOST || "api.vapi.ai";
 const vapiApiAddress = process.env.VAPI_API_ADDRESS || "104.18.24.64";
+const vapiPublicKey = process.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4f2c-88a8-8d7c87cd57ee";
+const vapiAssistantId = process.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
+const vapiClientApiBaseUrl = process.env.VITE_VAPI_API_BASE_URL || "/api/vapi";
 
 const app = express();
 app.use((request, response, next) => {
@@ -179,6 +182,16 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     persistence: getPersistenceMode(),
+  });
+});
+
+app.get("/api/vapi/client-config", (_request, response) => {
+  response.setHeader("Cache-Control", "no-store, max-age=0");
+  response.json({
+    ok: true,
+    publicKey: vapiPublicKey,
+    assistantId: vapiAssistantId,
+    apiBaseUrl: vapiClientApiBaseUrl,
   });
 });
 
