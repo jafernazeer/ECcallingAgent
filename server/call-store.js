@@ -5,8 +5,9 @@ import WebSocket from "ws";
 const MAX_CALL_RECORDS = 80;
 const WORKFLOW_STATUSES = ["Open", "Follow up required", "Closed"];
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DEFAULT_SUPABASE_URL = "https://xhzukynariylbojypjww.supabase.co";
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET;
 const supabase = supabaseUrl && serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -232,6 +233,40 @@ async function insertTranscriptSnapshot(callId, transcript, currentTime = nowIso
   if (rows.length) await client.from("transcripts").insert(rows);
 }
 
+async function insertTranscriptEvent(callId, event, currentTime = nowIso()) {
+  const client = requireSupabase();
+  if (!client || !event?.text?.trim()) return;
+
+  const entry = normalizeTranscriptEntry({
+    speaker: event.speaker || "Customer",
+    text: event.text,
+    at: event.at || currentTime,
+    final: event.final !== false,
+    partial: Boolean(event.partial),
+  });
+
+  const { data: existingRows } = await client
+    .from("transcripts")
+    .select("call_id")
+    .eq("call_id", callId)
+    .eq("speaker", entry.speaker || "Customer")
+    .eq("text", entry.text.trim())
+    .limit(1);
+
+  if (existingRows?.length) return;
+
+  await client
+    .from("transcripts")
+    .insert({
+      call_id: callId,
+      speaker: entry.speaker || "Customer",
+      text: entry.text.trim(),
+      is_final: entry.final !== false,
+      partial: Boolean(entry.partial),
+      spoken_at: normalizeDate(entry.at) || currentTime,
+    });
+}
+
 function mapCallRow(row) {
   const transcript = [...(row.transcripts || [])]
     .sort((a, b) => new Date(a.spoken_at).getTime() - new Date(b.spoken_at).getTime())
@@ -436,16 +471,7 @@ export async function saveCallEvent(event, rawPayload = null) {
   }
 
   if (event.type === "transcript" && event.text?.trim()) {
-    await client
-      .from("transcripts")
-      .insert({
-        call_id: callId,
-        speaker: event.speaker || "Customer",
-        text: String(event.text).trim(),
-        is_final: event.final !== false,
-        partial: Boolean(event.partial),
-        spoken_at: normalizeDate(event.at) || currentTime,
-      });
+    await insertTranscriptEvent(callId, event, currentTime);
 
     await upsertCallLead(callId);
   }

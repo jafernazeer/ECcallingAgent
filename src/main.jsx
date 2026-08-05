@@ -9,11 +9,17 @@ const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4
 const VAPI_ASSISTANT_ID = import.meta.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
 const VAPI_API_BASE_URL = import.meta.env.VITE_VAPI_API_BASE_URL
   || (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "/api/vapi" : undefined);
-const HAS_BROWSER_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL);
-const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL
-  || (!HAS_BROWSER_SUPABASE && typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "http://localhost:5172/api/call-events"
-    : "");
+const PRODUCTION_DASHBOARD_EVENTS_URL = "https://ethikcorpdashboard.aqionlabs.com/api/call-events";
+
+function getDefaultDashboardEventsUrl() {
+  if (typeof window === "undefined") return "";
+  const hostname = window.location.hostname;
+  if (["localhost", "127.0.0.1"].includes(hostname)) return "http://localhost:5172/api/call-events";
+  if (hostname === "ethikcorpdashboard.aqionlabs.com") return "";
+  return PRODUCTION_DASHBOARD_EVENTS_URL;
+}
+
+const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL || getDefaultDashboardEventsUrl();
 
 async function getVapiClientConfig() {
   try {
