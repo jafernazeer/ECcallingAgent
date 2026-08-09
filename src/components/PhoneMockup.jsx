@@ -101,10 +101,23 @@ function ReadyScreen({ status, statusMessage }) {
   const requesting = status === CALL_STATE.requestingPermission;
   const helperCopy = requesting
     ? statusMessage
-    : "Watch it listen, understand and turn your conversation into a qualified lead in real time.";
+    : (
+      <>
+        <span>Watch the Conversation live</span>
+        <span>as transcripts appear on the screen</span>
+        <span className="copy-gap">Scroll down to view</span>
+        <span>Captured Lead after the call</span>
+      </>
+    );
 
   return (
     <div className="phone-state">
+      {!requesting && (
+        <span className="state-note">
+          <ShieldCheck size={13} aria-hidden="true" />
+          Private browser call · nothing to install
+        </span>
+      )}
       <div className={`voice-core ${requesting ? "is-pending" : ""}`} aria-hidden="true">
         <span className="voice-ring ring-one" />
         <span className="voice-ring ring-two" />
@@ -117,16 +130,10 @@ function ReadyScreen({ status, statusMessage }) {
         {requesting ? (
           "Microphone access required"
         ) : (
-          "Speak to EC Calling Agent"
+          "Test EC Calling Agent Now"
         )}
       </strong>
       <p className="state-copy">{helperCopy}</p>
-      {!requesting && (
-        <span className="state-note">
-          <ShieldCheck size={13} aria-hidden="true" />
-          Private browser call · nothing to install
-        </span>
-      )}
     </div>
   );
 }

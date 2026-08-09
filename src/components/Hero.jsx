@@ -62,7 +62,7 @@ export function EthikAqionHero() {
       </h1>
 
       <p className="hero-sub">
-        Experience EthikCorp’s Agentic AI Calling Solution
+        Experience EC Calling Agent, the Agentic Voice AI built by EthikCorp for modern SMEs
       </p>
     </header>
   );

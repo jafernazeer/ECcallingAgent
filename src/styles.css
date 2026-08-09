@@ -483,6 +483,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .state-title > span { display: block; }
 
 .state-copy { max-width: 29ch; margin: 0; color: #9996a2; font-size: 12.5px; line-height: 1.55; }
+.state-copy span { display: block; }
+.state-copy span + span { margin-top: 2px; }
+.state-copy .copy-gap { margin-top: 16px; }
 
 .state-note {
   display: inline-flex;
@@ -957,7 +960,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .phone-state { gap: 6px; padding: 0 6px; }
   .state-title { max-width: 240px; font-size: 14px; }
   .state-copy { max-width: 29ch; font-size: 11px; line-height: 1.4; }
-  .state-note { display: none; }
+  .state-copy .copy-gap { margin-top: 12px; }
+  .state-note { display: inline-flex; padding: 5px 8px; font-size: 8.5px; }
   .status-pill { padding: 0 8px; }
   .controls .btn-call { min-width: 188px; min-height: 44px; padding: 0 18px; }
   .section-head h2, .email-intro h2 { font-size: 34px; }
