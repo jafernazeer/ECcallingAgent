@@ -36,7 +36,13 @@ export default function App() {
             onClear={call.clearTestData}
           />
 
-          <EmailRecipients completedCall={call.completedCall} />
+          <EmailRecipients
+            completedCall={call.completedCall}
+            lead={call.lead}
+            transcript={call.transcript}
+            startedAt={call.callStartedAt}
+            durationSeconds={call.elapsed}
+          />
         </div>
       </main>
 

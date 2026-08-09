@@ -851,6 +851,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .field-hint.tone-ok { color: #71d6a4; }
 .field-hint.tone-error { color: #ff918d; }
 .email-actions .btn { min-height: 44px; flex: none; padding: 0 16px; font-size: 12px; }
+.email-button-row { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; flex: none; }
 
 .page-footer {
   width: min(calc(100% - 48px), var(--shell));
@@ -929,6 +930,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .link-quiet { margin-left: auto; margin-right: auto; }
   .email-panel { padding: 27px 20px; border-radius: 20px; }
   .email-actions { align-items: stretch; flex-direction: column; }
+  .email-button-row { display: grid; grid-template-columns: 0.74fr 1fr; gap: 10px; }
   .email-actions .btn { width: 100%; min-height: 50px; }
   .page-footer { width: calc(100% - 32px); flex-direction: column; align-items: center; text-align: center; }
 }

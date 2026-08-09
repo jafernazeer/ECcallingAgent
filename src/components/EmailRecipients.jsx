@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Plus, X } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check, Loader2, Plus, Send, X } from "lucide-react";
 import { STORAGE_KEYS, readStored, writeStored } from "../lib/storage.js";
 import { buildEmailSummary } from "../lib/callHelpers.js";
 
@@ -16,15 +16,27 @@ function RecipientChip({ email, onRemove }) {
   );
 }
 
-export function EmailRecipients({ completedCall }) {
+export function EmailRecipients({ completedCall, lead, transcript = [], startedAt, durationSeconds }) {
   const initialRecipients = useRef(readStored(STORAGE_KEYS.recipients, []) || []).current;
   const [recipients, setRecipients] = useState(initialRecipients);
   const [savedRecipients, setSavedRecipients] = useState(initialRecipients);
   const [draft, setDraft] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
-  const deliveredRef = useRef(new Set());
+
+  const latestCall = useMemo(() => {
+    if (completedCall?.lead || completedCall?.transcript?.length) return completedCall;
+    if (!lead && !transcript.length) return null;
+    return {
+      sessionId: `manual-${Date.now()}`,
+      lead,
+      transcript,
+      startedAt,
+      durationSeconds,
+    };
+  }, [completedCall, durationSeconds, lead, startedAt, transcript]);
 
   const addRecipient = useCallback((raw) => {
     const email = String(raw || "").trim().toLowerCase();
@@ -88,36 +100,61 @@ export function EmailRecipients({ completedCall }) {
     setFeedback({ tone: "ok", text: "Notification recipients saved" });
   }
 
-  // Deliver the summary once per completed call, never on re-render or refresh.
-  useEffect(() => {
-    if (!completedCall?.sessionId) return;
-    if (!savedRecipients.length) return;
-    if (deliveredRef.current.has(completedCall.sessionId)) return;
-    deliveredRef.current.add(completedCall.sessionId);
+  async function handleSend() {
+    const pending = draft.trim().toLowerCase();
+    if (pending && !EMAIL_PATTERN.test(pending)) {
+      setFeedback({ tone: "error", text: "Enter a valid email address before sending." });
+      return;
+    }
 
-    fetch("/api/email-updates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        recipients: savedRecipients,
-        subject: "EC Calling Agent — call summary and captured lead",
-        message: buildEmailSummary(completedCall),
-        deliveryId: completedCall.sessionId,
-      }),
-    })
-      .then((response) => response.json().catch(() => ({})))
-      .then((result) => {
-        if (result?.ok && result.configured === false) {
-          setFeedback({ tone: "error", text: "Email delivery is not configured on the server yet." });
-        } else if (result?.ok) {
-          setFeedback({ tone: "ok", text: `Call summary sent to ${result.sent || savedRecipients.length} recipient(s)` });
-        }
-      })
-      .catch(() => {
-        deliveredRef.current.delete(completedCall.sessionId);
-        setFeedback({ tone: "error", text: "We couldn't send the call summary. Try saving again." });
+    const nextRecipients = pending && EMAIL_PATTERN.test(pending)
+      ? [...new Set([...recipients, pending])]
+      : recipients;
+
+    if (!nextRecipients.length) {
+      setFeedback({ tone: "error", text: "Add at least one recipient before sending." });
+      return;
+    }
+
+    if (!latestCall?.lead && !latestCall?.transcript?.length) {
+      setFeedback({ tone: "error", text: "Complete a call first, then send the captured details." });
+      return;
+    }
+
+    if (pending && EMAIL_PATTERN.test(pending)) {
+      setRecipients(nextRecipients);
+      setDraft("");
+    }
+    writeStored(STORAGE_KEYS.recipients, nextRecipients);
+    setSavedRecipients(nextRecipients);
+    setSaved(true);
+    setIsSending(true);
+    setFeedback(null);
+
+    try {
+      const response = await fetch("/api/email-updates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients: nextRecipients,
+          subject: "EC Calling Agent — call summary and captured lead",
+          message: buildEmailSummary(latestCall),
+          deliveryId: `${latestCall.sessionId || "manual"}-${Date.now()}`,
+        }),
       });
-  }, [completedCall, savedRecipients]);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) throw new Error(result?.error || "Email request failed.");
+      if (result.configured === false) {
+        setFeedback({ tone: "error", text: "Email delivery needs the SMTP backend. Deploy as Express or connect an email API." });
+        return;
+      }
+      setFeedback({ tone: "ok", text: `Call summary sent to ${result.sent || nextRecipients.length} recipient(s).` });
+    } catch {
+      setFeedback({ tone: "error", text: "Email sending is unavailable in static-only deployment. Use the Express backend or an email API." });
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   return (
     <section className="section email-section" aria-labelledby="email-heading">
@@ -156,11 +193,17 @@ export function EmailRecipients({ completedCall }) {
               <p id="recipient-hint" className={`field-hint ${feedback ? `tone-${feedback.tone}` : ""}`}>
                 {feedback ? feedback.text : "Press Enter to add each address."}
               </p>
-              <button type="button" className="btn btn-primary" onClick={handleSave} disabled={!recipients.length && !draft.trim()}>
-                {saved ? <Check size={16} /> : <Plus size={16} />}
-                Save Configuration
-                {!saved && <ArrowRight size={15} />}
-              </button>
+              <div className="email-button-row">
+                <button type="button" className="btn btn-ghost" onClick={handleSave} disabled={!recipients.length && !draft.trim()}>
+                  {saved ? <Check size={16} /> : <Plus size={16} />}
+                  Save
+                  {!saved && <ArrowRight size={15} />}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={handleSend} disabled={isSending || (!recipients.length && !draft.trim())}>
+                  {isSending ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>
