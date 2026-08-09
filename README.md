@@ -142,3 +142,19 @@ When those variables are missing, the portal still stores recipient emails local
 ```bash
 npm run build
 ```
+
+## Hostinger
+
+Use the Express preset with:
+
+```text
+Branch: main
+Node version: 22.x
+Root directory: ./
+Build command: npm run build
+Entry file: server.js
+Output directory: dist
+```
+
+The root `server.js` file starts the Express backend, which serves the built
+Vite frontend from `dist` and keeps the `/api/*` routes available.
