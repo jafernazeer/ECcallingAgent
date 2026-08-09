@@ -293,6 +293,119 @@ export function extractSubmitLeadEvents(message) {
     .filter(Boolean);
 }
 
+function normalizeTranscriptForLead(entries = []) {
+  return entries
+    .filter((entry) => entry?.text?.trim() && !entry.partial)
+    .map((entry) => {
+      const speaker = entry.speaker === "agent" || entry.speaker === "AI Agent" ? "agent" : "user";
+      return {
+        speaker,
+        text: String(entry.text || "").replace(/\s+/g, " ").trim(),
+      };
+    });
+}
+
+function firstMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function titleCaseName(value) {
+  const cleaned = String(value || "")
+    .replace(/\b(?:from|at|with|for|in|and|my email|email|phone|number|calling|looking|need|require|company)\b.*$/i, "")
+    .replace(/[^a-zA-Z .'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = cleaned.split(" ").filter(Boolean).slice(0, 4);
+  if (!words.length) return "";
+  if (words.some((word) => /^(from|email|phone|need|calling|company|location)$/i.test(word))) return "";
+  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+
+function cleanEntity(value) {
+  return String(value || "")
+    .replace(/\b(?:and|my email|email|phone|number|contact|requirement|i need|we need|looking for|located|based)\b.*$/i, "")
+    .replace(/[.。]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanRequirementText(value) {
+  return String(value || "")
+    .replace(/\b(?:my name is|this is|i am|i'm|name is|call me)\b[^,.]*[,.]?/i, "")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "")
+    .replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "")
+    .replace(/\b(?:from|at|with)\s+[A-Z][A-Za-z0-9 &.'-]{2,80}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[,.-]+|[,.-]+$/g, "");
+}
+
+function customerAfterPrompt(entries, promptPattern) {
+  const promptIndex = entries.findIndex((entry) => entry.speaker === "agent" && promptPattern.test(entry.text));
+  if (promptIndex < 0) return "";
+  return entries.slice(promptIndex + 1).find((entry) => entry.speaker === "user" && entry.text)?.text || "";
+}
+
+function extractLocation(text) {
+  const knownPlace = text.match(/\b(Dubai|Abu Dhabi|Sharjah|Ajman|Ras Al Khaimah|Fujairah|Umm Al Quwain|UAE|United Arab Emirates|Kuwait|Saudi Arabia|Qatar|Oman|Bahrain|India|London|Singapore)\b/i)?.[1];
+  if (knownPlace) return knownPlace;
+  return cleanEntity(firstMatch(text, [
+    /\b(?:based in|located in|location is|from|in)\s+([A-Z][A-Za-z .'-]{2,40})\b/i,
+  ]));
+}
+
+export function deriveLeadFromTranscript(entries = []) {
+  const normalized = normalizeTranscriptForLead(entries);
+  const customerText = normalized
+    .filter((entry) => entry.speaker === "user")
+    .map((entry) => entry.text)
+    .join(" ");
+  if (!customerText.trim()) return null;
+
+  const namePromptAnswer = customerAfterPrompt(normalized, /\b(name|who am i speaking with|may i know|can i have your name|full name)\b/i);
+  const companyPromptAnswer = customerAfterPrompt(normalized, /\b(company|organisation|organization|business name)\b/i);
+  const locationPromptAnswer = customerAfterPrompt(normalized, /\b(location|where are you based|which emirate|which country|based in)\b/i);
+  const requirementPromptAnswer = customerAfterPrompt(normalized, /\b(how can i help|what.*requirement|what.*need|looking for|interested in|service|support)\b/i);
+
+  const email = customerText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const phone = customerText.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.replace(/\s+/g, " ").trim() || "";
+  const name = titleCaseName(firstMatch(customerText, [
+    /\b(?:my name is|this is|i am|i'm|it's|its|name is|call me)\s+([a-zA-Z .'-]{2,80})/i,
+  ]) || namePromptAnswer);
+  const company = cleanEntity(firstMatch(customerText, [
+    /\b(?:company is|company name is|organisation is|organization is|business is)\s+([A-Z][A-Za-z0-9 &.'-]{2,90})/i,
+    /\b(?:from|with|at|work at|working at)\s+([A-Z][A-Za-z0-9 &.'-]{2,90}(?:LLC|L\.L\.C|Ltd|Limited|Group|Consulting|Solutions|Company|Co\.|FZE|FZCO|Clinic|Hospital|Realty|Properties)?)\b/i,
+  ]) || companyPromptAnswer);
+  const place = extractLocation([locationPromptAnswer, customerText].filter(Boolean).join(" "));
+
+  const explicitRequirement = cleanRequirementText(firstMatch(customerText, [
+    /\b(?:i need|we need|looking for|interested in|want|require|requirement is|calling about|need help with|enquire about|inquire about)\s+(.{8,220})/i,
+  ]));
+  const fallbackRequirement = cleanRequirementText(requirementPromptAnswer)
+    || normalized
+      .filter((entry) => entry.speaker === "user")
+      .map((entry) => cleanRequirementText(entry.text))
+      .find((text) => text.length > 18 && !/@/.test(text) && !/(?:\+?\d[\d\s().-]{7,}\d)/.test(text))
+    || "";
+  const requirement = explicitRequirement || fallbackRequirement;
+
+  const lead = {
+    name,
+    company,
+    place,
+    phone,
+    email,
+    requirement,
+  };
+
+  return Object.values(lead).some(Boolean) ? lead : null;
+}
+
 export function formatDuration(totalSeconds) {
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
   const seconds = String(totalSeconds % 60).padStart(2, "0");

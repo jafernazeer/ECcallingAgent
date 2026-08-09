@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Vapi from "@vapi-ai/web";
 import {
   CALL_SOURCE,
+  deriveLeadFromTranscript,
   extractSubmitLeadEvents,
   extractTranscriptFromVapiMessage,
   extractVapiCallId,
@@ -70,6 +71,15 @@ function toDisplayTranscript(entries, sessionId) {
     }));
 }
 
+function mergeLeadValues(current, next) {
+  const merged = { ...(current || {}) };
+  Object.entries(next || {}).forEach(([key, value]) => {
+    const cleaned = String(value || "").trim();
+    if (cleaned) merged[key] = cleaned;
+  });
+  return Object.values(merged).some(Boolean) ? merged : null;
+}
+
 export function useVapiCall() {
   const [status, setStatus] = useState(CALL_STATE.idle);
   const [statusMessage, setStatusMessage] = useState(STATE_MESSAGE[CALL_STATE.idle]);
@@ -102,6 +112,14 @@ export function useVapiCall() {
   useEffect(() => {
     elapsedRef.current = elapsed;
   }, [elapsed]);
+
+  useEffect(() => {
+    if (lead || !transcript.length || ACTIVE_STATES.has(status)) return;
+    const restoredLead = deriveLeadFromTranscript(transcript);
+    if (!restoredLead) return;
+    setLead(restoredLead);
+    writeStored(STORAGE_KEYS.lead, restoredLead);
+  }, [lead, status, transcript]);
 
   // Call timer — runs only while genuinely connected.
   useEffect(() => {
@@ -186,6 +204,14 @@ export function useVapiCall() {
       : [...currentDisplay, displayEntry];
 
     setTranscript(displayTranscriptRef.current);
+
+    if (!nextEntry.partial) {
+      const transcriptDerivedLead = deriveLeadFromTranscript(transcriptSnapshotRef.current);
+      if (transcriptDerivedLead) {
+        leadSnapshotRef.current = mergeLeadValues(leadSnapshotRef.current, transcriptDerivedLead);
+        setLead(leadSnapshotRef.current);
+      }
+    }
   }
 
   function resetCallSnapshots() {
@@ -216,7 +242,8 @@ export function useVapiCall() {
 
     const finalTranscript = transcriptSnapshotRef.current.filter((entry) => entry.text?.trim() && !entry.partial);
     const finalDisplayTranscript = displayTranscriptRef.current.filter((entry) => entry.text?.trim() && entry.isFinal);
-    const finalLead = leadSnapshotRef.current;
+    const transcriptLead = deriveLeadFromTranscript(finalTranscript);
+    const finalLead = mergeLeadValues(transcriptLead, leadSnapshotRef.current);
     const durationSeconds = elapsedRef.current;
     const externalCallId = externalCallIdRef.current;
 
@@ -256,7 +283,10 @@ export function useVapiCall() {
         const hydratedTranscript = record?.transcript?.length
           ? toDisplayTranscript(record.transcript, sessionId)
           : finalDisplayTranscript;
-        const hydratedLead = record?.lead || finalLead;
+        const hydratedLead = record?.lead
+          || mergeLeadValues(deriveLeadFromTranscript(record?.transcript || []), finalLead)
+          || finalLead
+          || deriveLeadFromTranscript(finalTranscript);
 
         writeStored(STORAGE_KEYS.transcript, hydratedTranscript);
         if (hydratedLead) writeStored(STORAGE_KEYS.lead, hydratedLead);
@@ -371,9 +401,9 @@ export function useVapiCall() {
         handleGoodbyeTranscript(transcriptEvent, sessionId);
       }
       extractSubmitLeadEvents(vapiMessage).forEach((leadEvent) => {
-        leadSnapshotRef.current = leadEvent.lead;
-        setLead(leadEvent.lead);
-        writeStored(STORAGE_KEYS.lead, leadEvent.lead);
+        leadSnapshotRef.current = mergeLeadValues(leadSnapshotRef.current, leadEvent.lead);
+        setLead(leadSnapshotRef.current);
+        writeStored(STORAGE_KEYS.lead, leadSnapshotRef.current);
         emit({ ...leadEvent, sessionId, source: CALL_SOURCE });
       });
     });
