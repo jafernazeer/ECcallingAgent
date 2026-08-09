@@ -388,7 +388,28 @@ export function useVapiCall() {
 
     try {
       applyState(CALL_STATE.connecting);
-      const startedCall = await vapi.start(vapiConfig.assistantId);
+      const startedCall = await vapi.start(vapiConfig.assistantId, {
+        metadata: {
+          browserSessionId: sessionId,
+          source: CALL_SOURCE,
+        },
+        clientMessages: [
+          "conversation-update",
+          "function-call",
+          "function-call-result",
+          "hang",
+          "model-output",
+          "speech-update",
+          "status-update",
+          "transcript",
+          "tool-calls",
+          "tool-calls-result",
+          "tool.completed",
+          "user-interrupted",
+          "voice-input",
+          "assistant.started",
+        ],
+      });
       linkExternalCallId(sessionId, extractVapiCallId(startedCall));
     } catch (error) {
       failCall(sessionId, error, vapi);

@@ -97,7 +97,7 @@ export async function fetchCompletedCallRecordByIds({ sessionId, externalCallId 
   let bestMatch = null;
   const externalIds = [externalCallId, externalCallId ? `vapi-${externalCallId}` : ""].filter(Boolean);
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
     const results = await Promise.allSettled(urls.map(async (url) => {
       const response = await fetch(`${url}?ts=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) return null;
@@ -111,7 +111,7 @@ export async function fetchCompletedCallRecordByIds({ sessionId, externalCallId 
 
     bestMatch = results.find((result) => result.status === "fulfilled" && result.value)?.value || bestMatch;
     if (bestMatch?.status === "ended" && (bestMatch.lead || bestMatch.transcript?.length)) return bestMatch;
-    await wait(220 + (attempt * 180));
+    await wait(260 + (attempt * 220));
   }
 
   return bestMatch;

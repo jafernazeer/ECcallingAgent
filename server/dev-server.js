@@ -179,9 +179,22 @@ function getVapiCallId(payload) {
   return payload?.sessionId
     || payload?.callId
     || payload?.call?.id
+    || payload?.call?.callId
     || payload?.message?.call?.id
     || payload?.message?.callId
     || payload?.message?.call?.monitor?.callId
+    || payload?.message?.call?.callId
+    || payload?.artifact?.call?.id
+    || "";
+}
+
+function getBrowserSessionId(payload) {
+  return payload?.browserSessionId
+    || payload?.metadata?.browserSessionId
+    || payload?.call?.metadata?.browserSessionId
+    || payload?.message?.metadata?.browserSessionId
+    || payload?.message?.call?.metadata?.browserSessionId
+    || payload?.artifact?.call?.metadata?.browserSessionId
     || "";
 }
 
@@ -259,7 +272,8 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
     const toolCall = findSubmitLeadToolCall(request.body);
     const args = findSubmitLeadArguments(request.body);
     const vapiCallId = getVapiCallId(request.body);
-    const sessionId = request.body?.sessionId || (vapiCallId ? `vapi-${vapiCallId}` : `vapi-lead-${Date.now()}`);
+    const browserSessionId = getBrowserSessionId(request.body);
+    const sessionId = browserSessionId || request.body?.sessionId || (vapiCallId ? `vapi-${vapiCallId}` : `vapi-lead-${Date.now()}`);
     const result = await saveCallEvent({
       type: "lead-captured",
       sessionId,
