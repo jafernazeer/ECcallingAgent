@@ -9,6 +9,7 @@ import {
   fetchCompletedCallRecordByIds,
   getFriendlyCallError,
   getVapiClientConfig,
+  isEmailDerivedCompany,
   isAgentGoodbye,
   isCustomerGoodbye,
   isFinalTranscript,
@@ -75,6 +76,7 @@ function mergeLeadValues(current, next) {
   const merged = { ...(current || {}) };
   Object.entries(next || {}).forEach(([key, value]) => {
     const cleaned = String(value || "").trim();
+    if (key === "company" && isEmailDerivedCompany(cleaned, next.email || merged.email)) return;
     if (cleaned) merged[key] = cleaned;
   });
   return Object.values(merged).some(Boolean) ? merged : null;

@@ -216,16 +216,35 @@ function parseMaybeJson(value) {
   }
 }
 
+function compactCompanyToken(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function isEmailDerivedCompany(company, email) {
+  const companyToken = compactCompanyToken(company);
+  const domain = String(email || "").split("@")[1] || "";
+  if (!companyToken || !domain) return false;
+  const domainToken = compactCompanyToken(domain);
+  const domainStemToken = compactCompanyToken(domain.split(".")[0]);
+  return companyToken === domainToken || companyToken === domainStemToken;
+}
+
+function cleanCapturedCompany(company, email) {
+  const cleaned = String(company || "").trim();
+  return isEmailDerivedCompany(cleaned, email) ? "" : cleaned;
+}
+
 function normalizeSubmitLeadArgs(args) {
   const data = parseMaybeJson(args);
   if (!data || typeof data !== "object") return null;
+  const email = String(data.email_id || data.emailId || data.email || "").trim();
   const lead = {
     name: String(data.customer_name || data.customerName || data.name || "").trim(),
-    company: String(data.company_name || data.companyName || data.company || "").trim(),
+    company: cleanCapturedCompany(data.company_name || data.companyName || data.company, email),
     place: String(data.location || data.place || "").trim(),
     requirement: String(data.requirement_summary || data.requirementSummary || data.requirement || "").trim(),
     phone: String(data.contact_number || data.contactNumber || data.phone || "").trim(),
-    email: String(data.email_id || data.emailId || data.email || "").trim(),
+    email,
   };
   return lead.name || lead.company || lead.place || lead.requirement || lead.phone || lead.email ? lead : null;
 }
@@ -377,10 +396,10 @@ export function deriveLeadFromTranscript(entries = []) {
   const name = titleCaseName(firstMatch(customerText, [
     /\b(?:my name is|this is|i am|i'm|it's|its|name is|call me)\s+([a-zA-Z .'-]{2,80})/i,
   ]) || namePromptAnswer);
-  const company = cleanEntity(firstMatch(customerText, [
+  const company = cleanCapturedCompany(cleanEntity(firstMatch(customerText, [
     /\b(?:company is|company name is|organisation is|organization is|business is)\s+([A-Z][A-Za-z0-9 &.'-]{2,90})/i,
     /\b(?:from|with|at|work at|working at)\s+([A-Z][A-Za-z0-9 &.'-]{2,90}(?:LLC|L\.L\.C|Ltd|Limited|Group|Consulting|Solutions|Company|Co\.|FZE|FZCO|Clinic|Hospital|Realty|Properties)?)\b/i,
-  ]) || companyPromptAnswer);
+  ]) || companyPromptAnswer), email);
   const place = extractLocation([locationPromptAnswer, customerText].filter(Boolean).join(" "));
 
   const explicitRequirement = cleanRequirementText(firstMatch(customerText, [

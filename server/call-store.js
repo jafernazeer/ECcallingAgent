@@ -39,6 +39,24 @@ function cleanText(value, fallback = "") {
   return text || fallback;
 }
 
+function compactCompanyToken(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isEmailDerivedCompany(company, email) {
+  const companyToken = compactCompanyToken(company);
+  const domain = String(email || "").split("@")[1] || "";
+  if (!companyToken || !domain) return false;
+  const domainToken = compactCompanyToken(domain);
+  const domainStemToken = compactCompanyToken(domain.split(".")[0]);
+  return companyToken === domainToken || companyToken === domainStemToken;
+}
+
+function cleanCapturedCompany(company, email, fallback = "Not captured") {
+  const cleaned = cleanText(company);
+  return cleaned && !isEmailDerivedCompany(cleaned, email) ? cleaned : fallback;
+}
+
 function parseMaybeJson(value) {
   if (!value || typeof value !== "string") return value;
   try {
@@ -51,11 +69,12 @@ function parseMaybeJson(value) {
 function normalizeCapturedLead(value) {
   const data = parseMaybeJson(value);
   if (!data || typeof data !== "object") return null;
+  const email = cleanText(data.email_id || data.emailId || data.email, "Not provided");
   const lead = {
     name: cleanText(data.customer_name || data.customerName || data.name, "Caller"),
-    company: cleanText(data.company_name || data.companyName || data.company, "Not captured"),
+    company: cleanCapturedCompany(data.company_name || data.companyName || data.company, email),
     phone: cleanText(data.contact_number || data.contactNumber || data.phone, "Browser call"),
-    email: cleanText(data.email_id || data.emailId || data.email, "Not provided"),
+    email,
     place: cleanText(data.location || data.place, "Not captured"),
     requirement: cleanText(data.requirement_summary || data.requirementSummary || data.requirement, "Live EthikCorp Agent inquiry"),
   };
@@ -179,7 +198,7 @@ function deriveLeadDetails(call, transcriptRows = []) {
 
   return {
     name: name || "Caller",
-    company: call?.lead?.company || "Not captured",
+    company: cleanCapturedCompany(call?.lead?.company, email),
     phone,
     email,
     place: extractPlace(entries, body, call),

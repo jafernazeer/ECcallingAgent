@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from "react";
-import { AudioWaveform, Loader2, Mic, MicOff, PhoneCall, PhoneOff, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
+import { AudioWaveform, Loader2, Mic, MicOff, PhoneCall, PhoneOff, Sparkles, TriangleAlert } from "lucide-react";
 import { CALL_STATE } from "../lib/useVapiCall.js";
 import { formatDuration } from "../lib/callHelpers.js";
 
@@ -112,12 +112,6 @@ function ReadyScreen({ status, statusMessage }) {
 
   return (
     <div className="phone-state">
-      {!requesting && (
-        <span className="state-note">
-          <ShieldCheck size={13} aria-hidden="true" />
-          Private browser call · nothing to install
-        </span>
-      )}
       <div className={`voice-core ${requesting ? "is-pending" : ""}`} aria-hidden="true">
         <span className="voice-ring ring-one" />
         <span className="voice-ring ring-two" />
@@ -130,7 +124,7 @@ function ReadyScreen({ status, statusMessage }) {
         {requesting ? (
           "Microphone access required"
         ) : (
-          "Test EC Calling Agent Now"
+          "Test Live Call Now"
         )}
       </strong>
       <p className="state-copy">{helperCopy}</p>
@@ -253,8 +247,6 @@ export function PhoneMockup({ call }) {
             onEnd={call.endCall}
             onToggleMute={call.toggleMute}
           />
-
-          <span className="home-indicator" aria-hidden="true" />
         </div>
       </div>
       <span className="phone-shadow" aria-hidden="true" />

@@ -487,19 +487,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .state-copy span + span { margin-top: 2px; }
 .state-copy .copy-gap { margin-top: 16px; }
 
-.state-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  color: #85818d;
-  background: rgba(255, 255, 255, 0.035);
-  font-size: 9.5px;
-}
-.state-note svg { color: #8f80ff; }
-
 .transcript-wrap { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
 .transcript-heading { margin: 0; color: #777481; font-family: "JetBrains Mono", monospace; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; }
 .transcript {
@@ -614,7 +601,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .control-btn.is-active { color: #e6c486; border-color: rgba(210, 163, 86, 0.3); background: rgba(210, 163, 86, 0.1); }
 .control-end { color: #ff928e; border-color: rgba(239, 93, 88, 0.28); background: rgba(239, 93, 88, 0.09); }
 
-.home-indicator { position: relative; z-index: 2; width: 110px; height: 4px; justify-self: center; border-radius: 4px; background: rgba(255, 255, 255, 0.28); }
 .phone-shadow { position: absolute; z-index: -2; left: 12%; right: 12%; bottom: -27px; height: 22px; border-radius: 50%; background: rgba(23, 21, 19, 0.18); filter: blur(12px); }
 .spin { animation: spin 850ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -961,7 +947,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .state-title { max-width: 240px; font-size: 14px; }
   .state-copy { max-width: 29ch; font-size: 11px; line-height: 1.4; }
   .state-copy .copy-gap { margin-top: 12px; }
-  .state-note { display: inline-flex; padding: 5px 8px; font-size: 8.5px; }
   .status-pill { padding: 0 8px; }
   .controls .btn-call { min-width: 188px; min-height: 44px; padding: 0 18px; }
   .section-head h2, .email-intro h2 { font-size: 34px; }
