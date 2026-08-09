@@ -60,7 +60,7 @@ export function LeadCaptured({ lead, transcript = [], status, onClear }) {
           <p className="eyebrow">Structured Intelligence</p>
           <h2 id="lead-heading">Lead Captured</h2>
           <p className="section-sub">
-            See how EC Calling Agent converts conversations into structured business opportunities in real time.
+            Converts live conversations into structured lead data.
           </p>
         </div>
 

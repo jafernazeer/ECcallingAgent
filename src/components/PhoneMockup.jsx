@@ -101,7 +101,7 @@ function ReadyScreen({ status, statusMessage }) {
   const requesting = status === CALL_STATE.requestingPermission;
   const helperCopy = requesting
     ? statusMessage
-    : "Tap Start Call and talk naturally.";
+    : "Watch it listen, understand and turn your conversation into a qualified lead in real time.";
 
   return (
     <div className="phone-state">
@@ -117,10 +117,7 @@ function ReadyScreen({ status, statusMessage }) {
         {requesting ? (
           "Microphone access required"
         ) : (
-          <>
-            <span>Experience EthikCorp’s</span>
-            <span>AI Calling Agent</span>
-          </>
+          "Speak to EC Calling Agent"
         )}
       </strong>
       <p className="state-copy">{helperCopy}</p>

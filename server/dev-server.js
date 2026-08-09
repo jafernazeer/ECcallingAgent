@@ -26,8 +26,37 @@ const vapiApiHost = process.env.VAPI_API_HOST || "api.vapi.ai";
 const vapiApiAddress = process.env.VAPI_API_ADDRESS || "104.18.24.64";
 const vapiPublicKey = process.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4f2c-88a8-8d7c87cd57ee";
 const vapiAssistantId = process.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
+const vapiAssistantName = process.env.VITE_VAPI_ASSISTANT_NAME || "EC Calling Agent";
 const vapiClientApiBaseUrl = process.env.VITE_VAPI_API_BASE_URL || "/api/vapi";
 const deliveredEmailIds = new Set();
+
+const submitLeadToolSchema = {
+  type: "function",
+  function: {
+    name: "submit_lead",
+    description: "Submit any captured lead details to the EthikCorp Lead Management Portal. Call this once the caller has provided any contact or requirement information: Name, Company, Location, Requirements, Phone, or Email.",
+    parameters: {
+      type: "object",
+      properties: {
+        customer_name: { type: "string", description: "Caller name, if provided." },
+        company_name: { type: "string", description: "Caller company or organization, if provided." },
+        location: { type: "string", description: "Caller city, emirate, country, or place, if provided." },
+        requirement_summary: { type: "string", description: "Brief summary of what the customer needs." },
+        contact_number: { type: "string", description: "Caller phone number, if provided or available from the call." },
+        email_id: { type: "string", description: "Caller email address, if provided." },
+      },
+      anyOf: [
+        { required: ["customer_name"] },
+        { required: ["company_name"] },
+        { required: ["location"] },
+        { required: ["requirement_summary"] },
+        { required: ["contact_number"] },
+        { required: ["email_id"] },
+      ],
+      additionalProperties: false,
+    },
+  },
+};
 
 const app = express();
 app.use((request, response, next) => {
@@ -192,8 +221,14 @@ app.get("/api/vapi/client-config", (_request, response) => {
     ok: true,
     publicKey: vapiPublicKey,
     assistantId: vapiAssistantId,
+    assistantName: vapiAssistantName,
     apiBaseUrl: vapiClientApiBaseUrl,
   });
+});
+
+app.get("/api/vapi/lead-tool/schema", (_request, response) => {
+  response.setHeader("Cache-Control", "no-store, max-age=0");
+  response.json(submitLeadToolSchema);
 });
 
 app.get("/api/call-records", async (_request, response) => {

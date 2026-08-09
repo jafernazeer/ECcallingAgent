@@ -12,6 +12,7 @@ export const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b
 export const VAPI_ASSISTANT_ID = import.meta.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
 export const VAPI_API_BASE_URL = import.meta.env.VITE_VAPI_API_BASE_URL
   || (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "/api/vapi" : undefined);
+export const VAPI_ASSISTANT_NAME = "EC Calling Agent";
 
 const PRODUCTION_DASHBOARD_EVENTS_URL = "https://ethikcorpdashboard.aqionlabs.com/api/call-events";
 
@@ -99,15 +100,24 @@ function wait(milliseconds) {
  * message, so the portal can still show the authoritative structured lead.
  */
 export async function fetchCompletedCallRecord(sessionId) {
+  return fetchCompletedCallRecordByIds({ sessionId });
+}
+
+export async function fetchCompletedCallRecordByIds({ sessionId, externalCallId }) {
   const urls = [...new Set(["/api/call-records", DASHBOARD_RECORDS_URL].filter(Boolean))];
   let bestMatch = null;
+  const externalIds = [externalCallId, externalCallId ? `vapi-${externalCallId}` : ""].filter(Boolean);
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const results = await Promise.allSettled(urls.map(async (url) => {
       const response = await fetch(`${url}?ts=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) return null;
       const payload = await response.json();
-      return payload.records?.find((record) => record.id === sessionId) || null;
+      return payload.records?.find((record) => (
+        record.id === sessionId
+        || externalIds.includes(record.id)
+        || (externalCallId && record.externalCallId === externalCallId)
+      )) || null;
     }));
 
     bestMatch = results.find((result) => result.status === "fulfilled" && result.value)?.value || bestMatch;
@@ -116,6 +126,20 @@ export async function fetchCompletedCallRecord(sessionId) {
   }
 
   return bestMatch;
+}
+
+export function extractVapiCallId(value) {
+  if (!value || typeof value !== "object") return "";
+  return String(
+    value.callId
+      || value.id
+      || value.call?.id
+      || value.message?.call?.id
+      || value.message?.callId
+      || value.message?.call?.monitor?.callId
+      || value.artifact?.call?.id
+      || "",
+  ).trim();
 }
 
 export async function requestMicrophoneAccess() {

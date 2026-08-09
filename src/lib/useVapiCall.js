@@ -4,7 +4,8 @@ import {
   CALL_SOURCE,
   extractSubmitLeadEvents,
   extractTranscriptFromVapiMessage,
-  fetchCompletedCallRecord,
+  extractVapiCallId,
+  fetchCompletedCallRecordByIds,
   getFriendlyCallError,
   getVapiClientConfig,
   isAgentGoodbye,
@@ -81,6 +82,7 @@ export function useVapiCall() {
   const [completedCall, setCompletedCall] = useState(null);
 
   const activeCallIdRef = useRef(null);
+  const externalCallIdRef = useRef("");
   const vapiRef = useRef(null);
   const audioRef = useRef(null);
   const endedCallIdsRef = useRef(new Set());
@@ -117,12 +119,29 @@ export function useVapiCall() {
   }
 
   function emit(event) {
-    const queuedEvent = { source: CALL_SOURCE, ...event };
+    const queuedEvent = {
+      source: CALL_SOURCE,
+      ...event,
+      ...(event.externalCallId || !externalCallIdRef.current ? {} : { externalCallId: externalCallIdRef.current }),
+    };
     const nextTask = eventQueueRef.current
       .catch(() => {})
       .then(() => persistCallEvent(queuedEvent));
     eventQueueRef.current = nextTask;
     return nextTask;
+  }
+
+  function linkExternalCallId(sessionId, externalCallId) {
+    const normalized = String(externalCallId || "").trim();
+    if (!sessionId || !normalized || externalCallIdRef.current === normalized) return;
+    externalCallIdRef.current = normalized;
+    emit({
+      type: "call-linked",
+      sessionId,
+      externalCallId: normalized,
+      at: nowIso(),
+      source: CALL_SOURCE,
+    });
   }
 
   function mergeTranscriptSnapshot(transcriptEvent) {
@@ -199,6 +218,7 @@ export function useVapiCall() {
     const finalDisplayTranscript = displayTranscriptRef.current.filter((entry) => entry.text?.trim() && entry.isFinal);
     const finalLead = leadSnapshotRef.current;
     const durationSeconds = elapsedRef.current;
+    const externalCallId = externalCallIdRef.current;
 
     applyState(CALL_STATE.processing);
 
@@ -228,7 +248,10 @@ export function useVapiCall() {
     // submit_lead webhook can finish just after the last browser event.
     eventQueueRef.current
       .catch(() => {})
-      .then(() => fetchCompletedCallRecord(sessionId).catch(() => null))
+      .then(() => fetchCompletedCallRecordByIds({
+        sessionId,
+        externalCallId,
+      }).catch(() => null))
       .then((record) => {
         const hydratedTranscript = record?.transcript?.length
           ? toDisplayTranscript(record.transcript, sessionId)
@@ -297,6 +320,7 @@ export function useVapiCall() {
     const sessionId = `ec-agent-${Date.now()}`;
     const startedAt = nowIso();
     activeCallIdRef.current = sessionId;
+    externalCallIdRef.current = "";
     endedCallIdsRef.current.delete(sessionId);
     clearGoodbyeTimers();
     resetCallSnapshots();
@@ -334,7 +358,12 @@ export function useVapiCall() {
       emit({ type: "call-start", sessionId, startedAt, channel: "Voice", source: CALL_SOURCE });
     });
 
+    vapi.on("call-start-success", (event) => {
+      linkExternalCallId(sessionId, extractVapiCallId(event));
+    });
+
     vapi.on("message", (vapiMessage) => {
+      linkExternalCallId(sessionId, extractVapiCallId(vapiMessage));
       const transcriptEvent = extractTranscriptFromVapiMessage(vapiMessage);
       if (transcriptEvent) {
         mergeTranscriptSnapshot(transcriptEvent);
@@ -359,7 +388,8 @@ export function useVapiCall() {
 
     try {
       applyState(CALL_STATE.connecting);
-      await vapi.start(vapiConfig.assistantId);
+      const startedCall = await vapi.start(vapiConfig.assistantId);
+      linkExternalCallId(sessionId, extractVapiCallId(startedCall));
     } catch (error) {
       failCall(sessionId, error, vapi);
     }

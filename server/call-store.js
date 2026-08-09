@@ -62,6 +62,26 @@ function normalizeCapturedLead(value) {
   return lead.name || lead.company || lead.phone || lead.email || lead.place || lead.requirement ? lead : null;
 }
 
+async function resolveCallIdForEvent(client, event) {
+  const requestedCallId = event.sessionId;
+  const externalCallId = String(event.externalCallId || event.callId || "").trim();
+  if (!client || !externalCallId) return requestedCallId;
+
+  const shouldPreferExistingCall = event.type === "lead-captured"
+    || event.type === "call-linked"
+    || String(requestedCallId || "").startsWith("vapi-");
+  if (!shouldPreferExistingCall) return requestedCallId;
+
+  const { data } = await client
+    .from("calls")
+    .select("id")
+    .eq("external_call_id", externalCallId)
+    .order("started_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  return data?.[0]?.id || requestedCallId;
+}
+
 function normalizeTranscriptEntry(entry) {
   return {
     speaker: entry?.speaker || "Customer",
@@ -390,8 +410,9 @@ export async function saveCallEvent(event, rawPayload = null) {
   if (!client) return saveLocalCallEvent(event);
   if (!event?.sessionId) return { persistence: "supabase", saved: false };
 
-  const callId = event.sessionId;
+  const callId = await resolveCallIdForEvent(client, event);
   const currentTime = nowIso();
+  const wasMappedToExistingCall = callId !== event.sessionId;
   const callPatch = {
     id: callId,
     external_call_id: event.externalCallId || event.callId || null,
@@ -442,12 +463,16 @@ export async function saveCallEvent(event, rawPayload = null) {
     const lead = normalizeCapturedLead(event.lead || event.arguments || event);
     if (lead) {
       Object.assign(callPatch, {
-        started_at: normalizeDate(event.at) || currentTime,
-        status: event.status || "connected",
         workflow_status: "Open",
         summary: lead.requirement,
         lead,
       });
+      if (!wasMappedToExistingCall) {
+        Object.assign(callPatch, {
+          started_at: normalizeDate(event.at) || currentTime,
+          status: event.status || "connected",
+        });
+      }
     }
   }
 
@@ -496,10 +521,21 @@ export async function saveCallEvent(event, rawPayload = null) {
 function saveLocalCallEvent(event) {
   if (!event?.sessionId) return { persistence: "local", saved: false };
 
-  const existing = localCallRecords.find((record) => record.id === event.sessionId);
+  const externalCallId = String(event.externalCallId || event.callId || "").trim();
+  const shouldPreferExistingCall = externalCallId && (
+    event.type === "lead-captured"
+    || event.type === "call-linked"
+    || String(event.sessionId || "").startsWith("vapi-")
+  );
+  const linkedRecord = shouldPreferExistingCall
+    ? localCallRecords.find((record) => record.externalCallId === externalCallId)
+    : null;
+  const callId = linkedRecord?.id || event.sessionId;
+  const existing = localCallRecords.find((record) => record.id === callId);
   const currentTime = nowIso();
+  const wasMappedToExistingCall = Boolean(linkedRecord);
   const base = existing || {
-    id: event.sessionId,
+    id: callId,
     externalCallId: event.externalCallId || event.callId || null,
     startedAt: normalizeDate(event.startedAt) || currentTime,
     endedAt: null,
@@ -513,6 +549,7 @@ function saveLocalCallEvent(event) {
     lead: null,
   };
   const updated = { ...base, transcript: [...(base.transcript || [])] };
+  if (externalCallId) updated.externalCallId = externalCallId;
 
   if (event.type === "call-created") {
     Object.assign(updated, {
@@ -554,10 +591,12 @@ function saveLocalCallEvent(event) {
     const lead = normalizeCapturedLead(event.lead || event.arguments || event);
     if (lead) {
       Object.assign(updated, {
-        status: updated.status === "ended" ? updated.status : "connected",
         summary: lead.requirement,
         lead,
       });
+      if (!wasMappedToExistingCall) {
+        updated.status = updated.status === "ended" ? updated.status : "connected";
+      }
     }
   }
 

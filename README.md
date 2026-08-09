@@ -37,6 +37,7 @@ http://localhost:5173
 ```bash
 VITE_VAPI_PUBLIC_KEY=f80cea3b-d773-4f2c-88a8-8d7c87cd57ee
 VITE_VAPI_ASSISTANT_ID=da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76
+VITE_VAPI_ASSISTANT_NAME=EC Calling Agent
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project-ref.supabase.co
@@ -60,13 +61,59 @@ POST /api/email-updates
 
 ## Vapi Lead Capture Tool
 
-Set the `submit_lead` tool Server URL to the deployed dashboard endpoint:
+Use the Vapi assistant:
 
 ```text
-https://your-dashboard-domain.com/api/vapi/lead-tool
+Assistant name: EC Calling Agent
+Assistant ID: da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76
+Public key: f80cea3b-d773-4f2c-88a8-8d7c87cd57ee
 ```
 
-The endpoint accepts the Vapi tool payload and stores:
+Set the `submit_lead` tool Server URL to the deployed agent portal endpoint:
+
+```text
+https://ethikcorp.aqionlabs.com/api/vapi/lead-tool
+```
+
+The same schema is also served by the portal for copy/paste:
+
+```text
+https://ethikcorp.aqionlabs.com/api/vapi/lead-tool/schema
+```
+
+Use this schema in Vapi. It intentionally allows the tool to run once any captured field is available, instead of waiting for every field:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "submit_lead",
+    "description": "Submit any captured lead details to the EthikCorp Lead Management Portal. Call this once the caller has provided any contact or requirement information: Name, Company, Location, Requirements, Phone, or Email.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "customer_name": { "type": "string", "description": "Caller name, if provided." },
+        "company_name": { "type": "string", "description": "Caller company or organization, if provided." },
+        "location": { "type": "string", "description": "Caller city, emirate, country, or place, if provided." },
+        "requirement_summary": { "type": "string", "description": "Brief summary of what the customer needs." },
+        "contact_number": { "type": "string", "description": "Caller phone number, if provided or available from the call." },
+        "email_id": { "type": "string", "description": "Caller email address, if provided." }
+      },
+      "anyOf": [
+        { "required": ["customer_name"] },
+        { "required": ["company_name"] },
+        { "required": ["location"] },
+        { "required": ["requirement_summary"] },
+        { "required": ["contact_number"] },
+        { "required": ["email_id"] }
+      ],
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+The endpoint accepts the Vapi tool payload, merges it into the active browser call using the Vapi call ID, and stores:
 
 - `customer_name` as lead name
 - `company_name` inside the call lead details

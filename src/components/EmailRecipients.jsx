@@ -126,7 +126,7 @@ export function EmailRecipients({ completedCall }) {
           <p className="eyebrow">Distribution</p>
           <h2 id="email-heading">Send Call Insights</h2>
           <p className="section-sub">
-            Automatically share the transcript and captured lead details with your team.
+            Share transcripts and captured leads with your team.
           </p>
         </div>
 
