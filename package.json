@@ -7,7 +7,8 @@
     "dev": "node server/dev-server.js",
     "dev:vite": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "NODE_ENV=production node server/dev-server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

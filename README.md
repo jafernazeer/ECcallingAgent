@@ -1,18 +1,18 @@
-# EthikcorpECDashboard
+# EC Calling Agent
 
-Live dashboard shell for the EthikCorp calling agent.
+Standalone agent test portal for the EthikCorp calling agent.
 
-This dashboard uses the Vapi browser SDK for diagnostics/test calls and receives call events from the standalone EthikCorp Agent portal.
+This portal uses the Vapi browser SDK for live test calls, captures transcripts and lead details, and stores completed call data through the portal backend.
 
 ## Features
 
-- Dashboard analytics layout.
-- Conversation timeline.
-- Lead management table.
-- Email update workflow.
-- Diagnostics page with Vapi-powered live call controls.
-- Supabase persistence for generic calls, transcripts, analytics, and captured leads when configured.
-- Local fallback event storage for portal-to-dashboard testing without Supabase.
+- Premium mobile-first agent test experience.
+- Vapi-powered live call controls.
+- Live transcript display inside the phone interface.
+- Latest captured lead view for the current test call.
+- Email recipient configuration for call insights.
+- Supabase persistence for calls, transcripts, and captured leads when configured.
+- Local fallback event storage when Supabase is not configured.
 
 ## Local Setup
 
@@ -48,7 +48,7 @@ The browser uses only the `VITE_` values for Vapi calls and Realtime updates. Th
 
 ## Backend Endpoints
 
-The portal and dashboard use these endpoints for live records:
+The portal uses these endpoints for live records:
 
 ```text
 GET  /api/health
@@ -135,7 +135,7 @@ SMTP_PASS=your-smtp-password-or-app-password
 EMAIL_FROM="EthikCorp Agent <notifications@your-domain.com>"
 ```
 
-When those variables are missing, the dashboard still builds the message preview and stores recipient emails locally, but the server will not send external email messages.
+When those variables are missing, the portal still stores recipient emails locally, but the server will not send external email messages.
 
 ## Build
 

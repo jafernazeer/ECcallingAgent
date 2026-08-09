@@ -14,6 +14,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
+const isProduction = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT || 5173);
 const hmrPort = Number(process.env.HMR_PORT || port + 20000);
 const smtpHost = process.env.SMTP_HOST || "";
@@ -351,14 +352,22 @@ app.patch("/api/calls/:id/status", async (request, response) => {
   }
 });
 
-const vite = await createViteServer({
-  root,
-  server: { middlewareMode: true, host: "0.0.0.0", hmr: { port: hmrPort } },
-  appType: "spa",
-});
+if (isProduction) {
+  const distPath = path.join(root, "dist");
+  app.use(express.static(distPath));
+  app.get(/.*/, (_request, response) => {
+    response.sendFile(path.join(distPath, "index.html"));
+  });
+} else {
+  const vite = await createViteServer({
+    root,
+    server: { middlewareMode: true, host: "0.0.0.0", hmr: { port: hmrPort } },
+    appType: "spa",
+  });
 
-app.use(vite.middlewares);
+  app.use(vite.middlewares);
+}
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`EthikCorp Agent dashboard running at http://localhost:${port}/`);
+  console.log(`EthikCorp Agent test portal running at http://localhost:${port}/`);
 });

@@ -1,9 +1,8 @@
 /**
  * Pure helpers for the EC Calling Agent voice session.
  *
- * These are lifted unchanged from the original single-file implementation so
- * that the Vapi event contract and the /api/call-events payload shape stay
- * byte-for-byte compatible with the EthikCorp dashboard.
+ * These helpers keep the Vapi event contract and the /api/call-events payload
+ * shape stable for the standalone EthikCorp agent test portal.
  */
 
 export const CALL_SOURCE = "Client agent test portal";
@@ -14,17 +13,7 @@ export const VAPI_API_BASE_URL = import.meta.env.VITE_VAPI_API_BASE_URL
   || (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "/api/vapi" : undefined);
 export const VAPI_ASSISTANT_NAME = "EC Calling Agent";
 
-const PRODUCTION_DASHBOARD_EVENTS_URL = "https://ethikcorpdashboard.aqionlabs.com/api/call-events";
-
-function getDefaultDashboardEventsUrl() {
-  if (typeof window === "undefined") return "";
-  const hostname = window.location.hostname;
-  if (["localhost", "127.0.0.1"].includes(hostname)) return "http://localhost:5172/api/call-events";
-  if (hostname === "ethikcorpdashboard.aqionlabs.com") return "";
-  return PRODUCTION_DASHBOARD_EVENTS_URL;
-}
-
-export const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL || getDefaultDashboardEventsUrl();
+export const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL || "";
 const DASHBOARD_RECORDS_URL = DASHBOARD_EVENTS_URL.replace(/\/call-events(?:\?.*)?$/, "/call-records");
 
 export async function getVapiClientConfig() {

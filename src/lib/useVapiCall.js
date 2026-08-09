@@ -90,7 +90,7 @@ export function useVapiCall() {
   const goodbyeTimeoutRef = useRef(null);
   const goodbyeFallbackRef = useRef(null);
   const eventQueueRef = useRef(Promise.resolve());
-  // Legacy-shaped snapshot: this is what gets POSTed to the dashboard.
+  // API-shaped snapshot: this is what gets persisted by the portal backend.
   const transcriptSnapshotRef = useRef([]);
   // Display-shaped snapshot: this is what renders inside the phone.
   const displayTranscriptRef = useRef([]);
