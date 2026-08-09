@@ -27,6 +27,7 @@ const vapiApiAddress = process.env.VAPI_API_ADDRESS || "104.18.24.64";
 const vapiPublicKey = process.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4f2c-88a8-8d7c87cd57ee";
 const vapiAssistantId = process.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
 const vapiClientApiBaseUrl = process.env.VITE_VAPI_API_BASE_URL || "/api/vapi";
+const deliveredEmailIds = new Set();
 
 const app = express();
 app.use((request, response, next) => {
@@ -253,6 +254,7 @@ app.post("/api/email-updates", async (request, response) => {
     const recipients = Array.isArray(request.body?.recipients) ? request.body.recipients : [];
     const subject = String(request.body?.subject || "EthikCorp Agent call summary").trim();
     const message = String(request.body?.message || "").trim();
+    const deliveryId = String(request.body?.deliveryId || "").trim();
     const normalizedRecipients = [...new Set(recipients.map(normalizeEmail).filter(Boolean))];
 
     if (!normalizedRecipients.length) {
@@ -262,6 +264,17 @@ app.post("/api/email-updates", async (request, response) => {
 
     if (!message) {
       response.status(400).json({ ok: false, error: "Email message cannot be empty." });
+      return;
+    }
+
+    if (deliveryId && deliveredEmailIds.has(deliveryId)) {
+      response.json({
+        ok: true,
+        configured: Boolean(smtpHost && emailFrom),
+        sent: 0,
+        duplicate: true,
+        recipients: normalizedRecipients,
+      });
       return;
     }
 
@@ -276,6 +289,10 @@ app.post("/api/email-updates", async (request, response) => {
     }
 
     const result = await sendEmailSummary(normalizedRecipients, subject, message);
+    if (deliveryId) {
+      if (deliveredEmailIds.size > 1000) deliveredEmailIds.clear();
+      deliveredEmailIds.add(deliveryId);
+    }
     response.json({
       ok: true,
       configured: true,

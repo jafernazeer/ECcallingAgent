@@ -1,0 +1,322 @@
+/**
+ * Pure helpers for the EC Calling Agent voice session.
+ *
+ * These are lifted unchanged from the original single-file implementation so
+ * that the Vapi event contract and the /api/call-events payload shape stay
+ * byte-for-byte compatible with the EthikCorp dashboard.
+ */
+
+export const CALL_SOURCE = "Client agent test portal";
+
+export const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4f2c-88a8-8d7c87cd57ee";
+export const VAPI_ASSISTANT_ID = import.meta.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
+export const VAPI_API_BASE_URL = import.meta.env.VITE_VAPI_API_BASE_URL
+  || (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "/api/vapi" : undefined);
+
+const PRODUCTION_DASHBOARD_EVENTS_URL = "https://ethikcorpdashboard.aqionlabs.com/api/call-events";
+
+function getDefaultDashboardEventsUrl() {
+  if (typeof window === "undefined") return "";
+  const hostname = window.location.hostname;
+  if (["localhost", "127.0.0.1"].includes(hostname)) return "http://localhost:5172/api/call-events";
+  if (hostname === "ethikcorpdashboard.aqionlabs.com") return "";
+  return PRODUCTION_DASHBOARD_EVENTS_URL;
+}
+
+export const DASHBOARD_EVENTS_URL = import.meta.env.VITE_DASHBOARD_EVENTS_URL || getDefaultDashboardEventsUrl();
+const DASHBOARD_RECORDS_URL = DASHBOARD_EVENTS_URL.replace(/\/call-events(?:\?.*)?$/, "/call-records");
+
+export async function getVapiClientConfig() {
+  try {
+    const response = await fetch(`/api/vapi/client-config?ts=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Vapi config unavailable.");
+    const config = await response.json();
+    return {
+      publicKey: config.publicKey || VAPI_PUBLIC_KEY,
+      assistantId: config.assistantId || VAPI_ASSISTANT_ID,
+      apiBaseUrl: config.apiBaseUrl || VAPI_API_BASE_URL,
+    };
+  } catch {
+    return {
+      publicKey: VAPI_PUBLIC_KEY,
+      assistantId: VAPI_ASSISTANT_ID,
+      apiBaseUrl: VAPI_API_BASE_URL,
+    };
+  }
+}
+
+export function nowIso() {
+  return new Date().toISOString();
+}
+
+const CUSTOMER_GOODBYE_PATTERN = /\b(bye|goodbye|that'?s all|that is all|no thanks|no thank you|thanks bye|thank you bye|ok bye|okay bye|see you)\b/i;
+const AGENT_GOODBYE_PATTERN = /\b(bye|goodbye|thank you for contacting|have a great day|have a good day|take care)\b/i;
+
+export function isFinalTranscript(event) {
+  return Boolean(event?.text) && event.final !== false && !event.partial;
+}
+
+export function isCustomerGoodbye(text) {
+  return CUSTOMER_GOODBYE_PATTERN.test(String(text || ""));
+}
+
+export function isAgentGoodbye(text) {
+  return AGENT_GOODBYE_PATTERN.test(String(text || ""));
+}
+
+async function postCallEvent(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    keepalive: JSON.stringify(payload).length < 60000,
+  });
+  if (!response.ok) throw new Error(`Call event sync failed with ${response.status}`);
+  return response.json().catch(() => ({}));
+}
+
+export async function persistCallEvent(event) {
+  if (!event?.sessionId) return [];
+  const payload = { source: CALL_SOURCE, ...event };
+  const requests = [postCallEvent("/api/call-events", payload)];
+  if (DASHBOARD_EVENTS_URL) {
+    requests.push(postCallEvent(DASHBOARD_EVENTS_URL, payload));
+  }
+  const results = await Promise.allSettled(requests);
+  if (results.every((result) => result.status === "rejected")) {
+    throw results[0].reason;
+  }
+  return results;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+/**
+ * Read the completed call back from the shared source. This closes the small
+ * gap where Vapi's server-side submit_lead tool finishes after the last browser
+ * message, so the portal can still show the authoritative structured lead.
+ */
+export async function fetchCompletedCallRecord(sessionId) {
+  const urls = [...new Set(["/api/call-records", DASHBOARD_RECORDS_URL].filter(Boolean))];
+  let bestMatch = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const results = await Promise.allSettled(urls.map(async (url) => {
+      const response = await fetch(`${url}?ts=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return null;
+      const payload = await response.json();
+      return payload.records?.find((record) => record.id === sessionId) || null;
+    }));
+
+    bestMatch = results.find((result) => result.status === "fulfilled" && result.value)?.value || bestMatch;
+    if (bestMatch?.status === "ended" && (bestMatch.lead || bestMatch.transcript?.length)) return bestMatch;
+    await wait(220 + (attempt * 180));
+  }
+
+  return bestMatch;
+}
+
+export async function requestMicrophoneAccess() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone access is not supported by this browser.");
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  stream.getTracks().forEach((track) => track.stop());
+}
+
+function toErrorText(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value.message === "string") return value.message;
+  if (typeof value.error === "string") return value.error;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Turn provider/browser errors into language a prospective client can read.
+ * Raw SDK text is never surfaced to the UI.
+ */
+export function getFriendlyCallError(error) {
+  const raw = `${toErrorText(error?.error)} ${toErrorText(error)}`.toLowerCase();
+
+  if (raw.includes("notallowed") || raw.includes("permission denied") || raw.includes("permission dismissed")) {
+    return {
+      kind: "permission",
+      message: "We couldn't access your microphone. Enable microphone permission in your browser and try again.",
+    };
+  }
+  if (raw.includes("notfound") || raw.includes("device not found") || raw.includes("requested device not found")) {
+    return {
+      kind: "device",
+      message: "No microphone was found. Connect a microphone and start the call again.",
+    };
+  }
+  if (raw.includes("notreadable") || raw.includes("could not start audio source")) {
+    return {
+      kind: "device",
+      message: "Your microphone is being used by another app. Close it and start the call again.",
+    };
+  }
+  if (raw.includes("not supported") || raw.includes("media devices")) {
+    return {
+      kind: "device",
+      message: "Microphone calling is not supported in this browser. Open the portal in Safari or Chrome and try again.",
+    };
+  }
+  if (raw.includes("network") || raw.includes("failed to fetch") || raw.includes("timeout")) {
+    return {
+      kind: "network",
+      message: "The connection dropped before the call could start. Check your network and try again.",
+    };
+  }
+  return {
+    kind: "unknown",
+    message: "The call could not be started. Check your microphone permission and try again.",
+  };
+}
+
+export function extractTranscriptFromVapiMessage(message) {
+  if (message?.type !== "transcript" || !message.transcript?.trim()) return null;
+  const role = String(message.role || "").toLowerCase();
+  return {
+    type: "transcript",
+    speaker: role === "assistant" || role === "bot" ? "AI Agent" : "Customer",
+    text: message.transcript.trim(),
+    final: message.transcriptType !== "partial",
+    partial: message.transcriptType === "partial",
+    at: nowIso(),
+  };
+}
+
+function parseMaybeJson(value) {
+  if (!value || typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeSubmitLeadArgs(args) {
+  const data = parseMaybeJson(args);
+  if (!data || typeof data !== "object") return null;
+  const lead = {
+    name: String(data.customer_name || data.customerName || data.name || "").trim(),
+    company: String(data.company_name || data.companyName || data.company || "").trim(),
+    place: String(data.location || data.place || "").trim(),
+    requirement: String(data.requirement_summary || data.requirementSummary || data.requirement || "").trim(),
+    phone: String(data.contact_number || data.contactNumber || data.phone || "").trim(),
+    email: String(data.email_id || data.emailId || data.email || "").trim(),
+  };
+  return lead.name || lead.company || lead.place || lead.requirement || lead.phone || lead.email ? lead : null;
+}
+
+function getToolName(toolCall) {
+  return toolCall?.function?.name
+    || toolCall?.functionCall?.name
+    || toolCall?.function_call?.name
+    || toolCall?.tool?.function?.name
+    || toolCall?.name
+    || "";
+}
+
+function getToolArguments(toolCall) {
+  return toolCall?.function?.arguments
+    || toolCall?.functionCall?.parameters
+    || toolCall?.function_call?.arguments
+    || toolCall?.parameters
+    || toolCall?.arguments
+    || toolCall?.input
+    || null;
+}
+
+function collectToolCalls(value, depth = 0) {
+  if (!value || depth > 3) return [];
+  if (Array.isArray(value)) return value.flatMap((item) => collectToolCalls(item, depth + 1));
+  if (typeof value !== "object") return [];
+
+  const directCalls = [
+    value.toolCall,
+    value.functionCall,
+    value.function_call,
+    ...(Array.isArray(value.toolCalls) ? value.toolCalls : []),
+    ...(Array.isArray(value.tool_calls) ? value.tool_calls : []),
+    ...(Array.isArray(value.toolCallList) ? value.toolCallList : []),
+  ].filter(Boolean);
+
+  return [
+    value,
+    ...directCalls,
+    ...collectToolCalls(value.message, depth + 1),
+    ...collectToolCalls(value.artifact, depth + 1),
+  ];
+}
+
+export function extractSubmitLeadEvents(message) {
+  const seen = new Set();
+  return collectToolCalls(message)
+    .map((toolCall) => {
+      const name = getToolName(toolCall);
+      if (name !== "submit_lead") return null;
+      const lead = normalizeSubmitLeadArgs(getToolArguments(toolCall));
+      if (!lead) return null;
+      const key = JSON.stringify(lead);
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return {
+        type: "lead-captured",
+        lead,
+        toolName: name,
+        toolCallId: toolCall.id || toolCall.toolCallId || "",
+        at: nowIso(),
+      };
+    })
+    .filter(Boolean);
+}
+
+export function formatDuration(totalSeconds) {
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+/** Build the plain-text body emailed to the configured recipients. */
+export function buildEmailSummary({ lead, transcript, startedAt, durationSeconds }) {
+  const lines = [];
+  lines.push("CALL SUMMARY");
+  lines.push(`Source: ${CALL_SOURCE}`);
+  if (startedAt) lines.push(`Started: ${new Date(startedAt).toLocaleString("en-GB")}`);
+  lines.push(`Duration: ${formatDuration(durationSeconds || 0)}`);
+  lines.push("");
+
+  lines.push("LEAD DETAILS");
+  if (lead) {
+    lines.push(`Name: ${lead.name || "—"}`);
+    lines.push(`Company: ${lead.company || "—"}`);
+    lines.push(`Location: ${lead.place || "—"}`);
+    lines.push(`Phone: ${lead.phone || "—"}`);
+    lines.push(`Email: ${lead.email || "—"}`);
+    lines.push(`Requirement: ${lead.requirement || "—"}`);
+  } else {
+    lines.push("No structured lead was captured during this call.");
+  }
+  lines.push("");
+
+  lines.push("CALL TRANSCRIPT");
+  if (transcript?.length) {
+    transcript.forEach((entry) => {
+      const who = entry.speaker === "agent" ? "EC Calling Agent" : "Caller";
+      lines.push(`${who}: ${entry.text}`);
+    });
+  } else {
+    lines.push("No transcript was captured for this call.");
+  }
+
+  return lines.join("\n");
+}
