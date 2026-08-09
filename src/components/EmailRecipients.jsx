@@ -4,6 +4,8 @@ import { STORAGE_KEYS, readStored, writeStored } from "../lib/storage.js";
 import { buildEmailSummary } from "../lib/callHelpers.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_UPDATES_URL = import.meta.env.VITE_EMAIL_UPDATES_URL || "/api/email-updates";
+const MAILTO_BODY_LIMIT = 6500;
 
 function RecipientChip({ email, onRemove }) {
   return (
@@ -14,6 +16,14 @@ function RecipientChip({ email, onRemove }) {
       </button>
     </span>
   );
+}
+
+function openEmailDraft({ recipients, subject, message }) {
+  const body = message.length > MAILTO_BODY_LIMIT
+    ? `${message.slice(0, MAILTO_BODY_LIMIT)}\n\n[Transcript shortened for email draft length. Copy the full transcript from the portal if needed.]`
+    : message;
+  const href = `mailto:${recipients.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.assign(href);
 }
 
 export function EmailRecipients({ completedCall, lead, transcript = [], startedAt, durationSeconds }) {
@@ -131,15 +141,19 @@ export function EmailRecipients({ completedCall, lead, transcript = [], startedA
     setIsSending(true);
     setFeedback(null);
 
+    const subject = "EC Calling Agent — call summary and captured lead";
+    const message = buildEmailSummary(latestCall);
+    const deliveryId = `${latestCall.sessionId || "manual"}-${Date.now()}`;
+
     try {
-      const response = await fetch("/api/email-updates", {
+      const response = await fetch(EMAIL_UPDATES_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipients: nextRecipients,
-          subject: "EC Calling Agent — call summary and captured lead",
-          message: buildEmailSummary(latestCall),
-          deliveryId: `${latestCall.sessionId || "manual"}-${Date.now()}`,
+          subject,
+          message,
+          deliveryId,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -150,7 +164,8 @@ export function EmailRecipients({ completedCall, lead, transcript = [], startedA
       }
       setFeedback({ tone: "ok", text: `Call summary sent to ${result.sent || nextRecipients.length} recipient(s).` });
     } catch {
-      setFeedback({ tone: "error", text: "Email sending is unavailable in static-only deployment. Use the Express backend or an email API." });
+      openEmailDraft({ recipients: nextRecipients, subject, message });
+      setFeedback({ tone: "ok", text: "Email draft opened with the call summary. Press Send in your mail app to deliver it." });
     } finally {
       setIsSending(false);
     }
