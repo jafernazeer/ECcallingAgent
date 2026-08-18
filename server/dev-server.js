@@ -33,6 +33,61 @@ const vapiClientApiBaseUrl = process.env.VITE_VAPI_API_BASE_URL || "/api/vapi";
 const retellApiKey = process.env.RETELL_API_KEY || "";
 const retellAgentId = process.env.RETELL_AGENT_ID || "";
 const retellApiBase = process.env.RETELL_API_BASE || "https://api.retellai.com";
+
+/**
+ * In-memory lead store keyed by the provider call id.
+ *
+ * The four capture tools each POST a slice of the lead; we merge them here so
+ * the browser can read one complete record without any database round-trip.
+ * Entries expire so a long-running process does not grow unbounded.
+ */
+const LEAD_TTL_MS = 1000 * 60 * 60 * 6;
+const liveLeads = new Map();
+
+function pruneLiveLeads() {
+  const cutoff = Date.now() - LEAD_TTL_MS;
+  for (const [key, entry] of liveLeads) {
+    if (entry.updatedAtMs < cutoff) liveLeads.delete(key);
+  }
+}
+
+function mergeLiveLead(callId, toolName, args) {
+  if (!callId) return null;
+  pruneLiveLeads();
+
+  const existing = liveLeads.get(callId) || { callId, fields: {}, tools: [], updatedAtMs: 0 };
+  const data = (args && typeof args === "object") ? args : {};
+
+  const next = { ...existing.fields };
+  const assign = (key, value) => {
+    const cleaned = typeof value === "string" ? value.trim() : value;
+    if (cleaned !== undefined && cleaned !== null && cleaned !== "") next[key] = cleaned;
+  };
+
+  assign("customer_name", data.customer_name || data.customerName || data.name);
+  assign("company_name", data.company_name || data.companyName || data.company);
+  assign("location", data.location || data.place);
+  assign("location_confidence", data.location_confidence);
+  assign("requirement_summary", data.requirement_summary || data.requirement);
+  assign("industry", data.industry);
+  assign("service_area", data.service_area || data.serviceArea);
+  assign("phone_number", data.phone_number || data.contact_number || data.phone);
+  assign("phone_confidence", data.phone_confidence);
+  assign("email", data.email_id || data.email);
+  assign("email_confidence", data.email_confidence);
+  assign("call_outcome", data.call_outcome);
+  if (typeof data.needs_human_review === "boolean") next.needs_human_review = data.needs_human_review;
+
+  const entry = {
+    callId,
+    fields: next,
+    tools: existing.tools.includes(toolName) ? existing.tools : [...existing.tools, toolName],
+    updatedAtMs: Date.now(),
+    updatedAt: new Date().toISOString(),
+  };
+  liveLeads.set(callId, entry);
+  return entry;
+}
 const deliveredEmailIds = new Set();
 
 const submitLeadToolSchema = {
@@ -289,6 +344,9 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
     const vapiCallId = getVapiCallId(request.body);
     const browserSessionId = getBrowserSessionId(request.body);
     const sessionId = browserSessionId || request.body?.sessionId || (vapiCallId ? `vapi-${vapiCallId}` : `vapi-lead-${Date.now()}`);
+    // Browser-readable copy, independent of the database.
+    mergeLiveLead(vapiCallId || sessionId, getToolName(toolCall) || "submit_lead", args);
+
     const result = await saveCallEvent({
       type: "lead-captured",
       sessionId,
@@ -361,6 +419,17 @@ app.post("/api/retell/web-call", async (request, response) => {
   } catch (error) {
     sendApiError(response, error);
   }
+});
+
+/** Read the merged, in-memory lead for a call. No database involved. */
+app.get("/api/lead/:callId", (request, response) => {
+  pruneLiveLeads();
+  const entry = liveLeads.get(String(request.params.callId || ""));
+  if (!entry) {
+    response.json({ ok: true, found: false, lead: null, tools: [] });
+    return;
+  }
+  response.json({ ok: true, found: true, lead: entry.fields, tools: entry.tools, updatedAt: entry.updatedAt });
 });
 
 app.post("/api/email-updates", async (request, response) => {

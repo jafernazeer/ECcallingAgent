@@ -1,7 +1,7 @@
 import React from "react";
 import { EthikAqionHero, ExperienceNotes, GridBackground, MotionDecoration } from "./components/Hero.jsx";
 import { PhoneMockup } from "./components/PhoneMockup.jsx";
-import { LeadCaptured } from "./components/LeadCaptured.jsx";
+import { LeadDashboard } from "./components/LeadDashboard.jsx";
 import { EmailRecipients } from "./components/EmailRecipients.jsx";
 import { useRetellCall } from "./lib/useRetellCall.js";
 
@@ -29,12 +29,7 @@ export default function App() {
         </section>
 
         <div className="content-shell">
-          <LeadCaptured
-            lead={call.lead}
-            transcript={call.transcript}
-            status={call.status}
-            onClear={call.clearTestData}
-          />
+          <LeadDashboard lead={call.lead} callActive={call.isActive} />
 
           <EmailRecipients
             completedCall={call.completedCall}

@@ -33,6 +33,27 @@ export const ACTIVE_STATES = new Set([
 ]);
 
 const WEB_CALL_URL = import.meta.env.VITE_RETELL_WEB_CALL_URL || "/api/retell/web-call";
+const LEAD_URL = import.meta.env.VITE_LEAD_URL || "/api/lead";
+
+/**
+ * The capture tools land server-side moments around hang-up, so poll briefly
+ * for the merged record instead of reading it once and giving up.
+ */
+async function pollLead(callId, onLead, attempts = 8) {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const response = await fetch(`${LEAD_URL}/${encodeURIComponent(callId)}`);
+      const result = await response.json();
+      if (result?.found && result.lead) {
+        onLead(result.lead);
+        if (result.tools?.includes("submit_lead")) return;
+      }
+    } catch {
+      // Endpoint unavailable — keep the UI on its empty state.
+    }
+    await new Promise((resolve) => { window.setTimeout(resolve, 1500); });
+  }
+}
 
 function friendlyError(error) {
   const raw = String(error?.message || error || "").toLowerCase();
@@ -148,6 +169,13 @@ export function useRetellCall() {
     });
 
     eventQueueRef.current.catch(() => {}).then(() => applyState(CALL_STATE.completed));
+
+    // Read the merged lead straight from the server's in-memory store.
+    pollLead(sessionId, (fields) => {
+      setLead(fields);
+      writeStored(STORAGE_KEYS.lead, fields);
+      setCompletedCall((current) => (current ? { ...current, lead: fields } : current));
+    });
   }
 
   const startCall = useCallback(async () => {
