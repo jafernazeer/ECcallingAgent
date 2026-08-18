@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { AudioWaveform, Loader2, Mic, MicOff, PhoneCall, PhoneOff, Sparkles, TriangleAlert } from "lucide-react";
-import { CALL_STATE } from "../lib/useVapiCall.js";
+import { CALL_STATE } from "../lib/useRetellCall.js";
 import { formatDuration } from "../lib/callHelpers.js";
 
 function StatusPill({ status, elapsed }) {

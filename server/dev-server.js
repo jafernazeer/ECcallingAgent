@@ -29,6 +29,10 @@ const vapiPublicKey = process.env.VITE_VAPI_PUBLIC_KEY || "f80cea3b-d773-4f2c-88
 const vapiAssistantId = process.env.VITE_VAPI_ASSISTANT_ID || "da9e9bf5-29e1-4d97-bd4b-f1dc3a97fe76";
 const vapiAssistantName = process.env.VITE_VAPI_ASSISTANT_NAME || "EC Calling Agent";
 const vapiClientApiBaseUrl = process.env.VITE_VAPI_API_BASE_URL || "/api/vapi";
+// Retell — secret key is server-only and must never be exposed to the browser.
+const retellApiKey = process.env.RETELL_API_KEY || "";
+const retellAgentId = process.env.RETELL_AGENT_ID || "";
+const retellApiBase = process.env.RETELL_API_BASE || "https://api.retellai.com";
 const deliveredEmailIds = new Set();
 
 const submitLeadToolSchema = {
@@ -184,6 +188,10 @@ function findSubmitLeadToolCall(payload) {
 
 function getVapiCallId(payload) {
   return payload?.sessionId
+    // Retell uses snake_case call_id; Vapi uses call.id / callId.
+    || payload?.call_id
+    || payload?.call?.call_id
+    || payload?.message?.call?.call_id
     || payload?.callId
     || payload?.call?.id
     || payload?.call?.callId
@@ -305,6 +313,55 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
 });
 
 app.use("/api/vapi", proxyVapiApi);
+
+/**
+ * Mint a Retell web-call access token. The browser calls this instead of ever
+ * holding the Retell secret key.
+ */
+app.post("/api/retell/web-call", async (request, response) => {
+  try {
+    if (!retellApiKey || !retellAgentId) {
+      response.status(503).json({
+        ok: false,
+        error: "Retell is not configured on this server. Set RETELL_API_KEY and RETELL_AGENT_ID.",
+      });
+      return;
+    }
+
+    const upstream = await fetch(`${retellApiBase}/v2/create-web-call`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${retellApiKey}`,
+      },
+      body: JSON.stringify({
+        agent_id: retellAgentId,
+        metadata: {
+          source: "Client agent test portal",
+          browserSessionId: String(request.body?.browserSessionId || ""),
+        },
+      }),
+    });
+
+    const result = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      response.status(502).json({
+        ok: false,
+        error: result?.message || `Retell rejected the web call request (${upstream.status}).`,
+      });
+      return;
+    }
+
+    response.json({
+      ok: true,
+      accessToken: result.access_token,
+      callId: result.call_id,
+      agentId: retellAgentId,
+    });
+  } catch (error) {
+    sendApiError(response, error);
+  }
+});
 
 app.post("/api/email-updates", async (request, response) => {
   try {

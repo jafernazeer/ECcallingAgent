@@ -1,6 +1,6 @@
 import React from "react";
 import { CircleCheck, RotateCcw } from "lucide-react";
-import { CALL_STATE } from "../lib/useVapiCall.js";
+import { CALL_STATE } from "../lib/useRetellCall.js";
 
 const FIELDS = [
   { key: "name", label: "Name" },

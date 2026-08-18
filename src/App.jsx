@@ -3,10 +3,10 @@ import { EthikAqionHero, ExperienceNotes, GridBackground, MotionDecoration } fro
 import { PhoneMockup } from "./components/PhoneMockup.jsx";
 import { LeadCaptured } from "./components/LeadCaptured.jsx";
 import { EmailRecipients } from "./components/EmailRecipients.jsx";
-import { useVapiCall } from "./lib/useVapiCall.js";
+import { useRetellCall } from "./lib/useRetellCall.js";
 
 export default function App() {
-  const call = useVapiCall();
+  const call = useRetellCall();
 
   return (
     <div className="page">
