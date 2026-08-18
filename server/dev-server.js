@@ -340,7 +340,9 @@ app.post("/api/call-events", async (request, response) => {
   }
 });
 
-app.post("/api/vapi/lead-tool", async (request, response) => {
+// Provider-neutral path. /api/vapi/lead-tool is kept as an alias so existing
+// agent configurations keep working.
+app.post(["/api/lead-tool", "/api/vapi/lead-tool"], async (request, response) => {
   try {
     const toolCall = findSubmitLeadToolCall(request.body);
     const args = findSubmitLeadArguments(request.body);
