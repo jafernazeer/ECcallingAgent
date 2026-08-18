@@ -363,7 +363,14 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
       ok: true,
       ...result,
       results: [{
-        toolCallId: toolCall?.id || toolCall?.toolCallId || "submit_lead",
+        // Echo the real tool call id when the provider sends one. Retell puts it
+        // at the payload root; Vapi nests it on the tool call itself.
+        toolCallId: toolCall?.id
+          || toolCall?.toolCallId
+          || request.body?.tool_call_id
+          || request.body?.toolCallId
+          || getToolName(toolCall)
+          || "submit_lead",
         result: "Lead submitted to the EthikCorp Lead Management Portal.",
       }],
       result: "Lead submitted to the EthikCorp Lead Management Portal.",
