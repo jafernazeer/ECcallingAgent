@@ -956,3 +956,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+/* v2 lead validation states */
+.lead-flag {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid rgba(239, 93, 88, 0.35);
+  border-radius: 999px;
+  background: rgba(239, 93, 88, 0.1);
+  color: var(--alert);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lead-badge {
+  display: block;
+  margin-top: 6px;
+  color: var(--amber);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}

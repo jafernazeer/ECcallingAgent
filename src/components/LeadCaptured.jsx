@@ -11,12 +11,26 @@ const FIELDS = [
   { key: "requirement", label: "Requirement", wide: true },
 ];
 
-function LeadField({ label, value, wide }) {
+const PHONE_RE = /^05[0-9]{8}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function LeadField({ label, value, wide, invalid, unconfirmed }) {
   const filled = Boolean(value);
   return (
     <div className={`lead-field ${wide ? "is-wide" : ""} ${filled ? "is-filled" : ""}`}>
       <dt>{label}</dt>
-      <dd>{filled ? value : <span className="lead-placeholder">—</span>}</dd>
+      <dd>
+        {!filled ? (
+          <span className="lead-placeholder">—</span>
+        ) : invalid ? (
+          <span className="lead-flag">Needs verification</span>
+        ) : (
+          value
+        )}
+        {filled && !invalid && unconfirmed && (
+          <span className="lead-badge">Unconfirmed — verify on callback</span>
+        )}
+      </dd>
     </div>
   );
 }
@@ -82,7 +96,21 @@ export function LeadCaptured({ lead, transcript = [], status, onClear }) {
               <div className="lead-confirmation"><CircleCheck size={16} /> Current test call captured</div>
               <dl className="lead-grid">
                 {FIELDS.map((field) => (
-                  <LeadField key={field.key} label={field.label} value={lead?.[field.key]} wide={field.wide} />
+                  <LeadField
+                    key={field.key}
+                    label={field.label}
+                    value={lead?.[field.key]}
+                    wide={field.wide}
+                    invalid={
+                      (field.key === "phone" && Boolean(lead?.phone) && !PHONE_RE.test(lead.phone))
+                      || (field.key === "email" && Boolean(lead?.email) && !EMAIL_RE.test(lead.email))
+                    }
+                    unconfirmed={
+                      (field.key === "place" && lead?.locationConfidence === "low")
+                      || (field.key === "phone" && lead?.phoneConfidence === "low")
+                      || (field.key === "email" && lead?.emailConfidence === "low")
+                    }
+                  />
                 ))}
                 <CallSummary transcript={capturedTranscript} />
               </dl>
