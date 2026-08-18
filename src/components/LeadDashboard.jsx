@@ -284,11 +284,13 @@ function BookingsTab() {
 export function LeadDashboard({ lead, transcript = [], callActive }) {
   const [activeNav, setActiveNav] = useState("leads");
   const retell = useRetellData();
-  const [selected, setSelected] = useState(true);
-  const quality = useMemo(() => scoreLead(lead), [lead]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  // Live leads from Retell, with the in-call capture pinned first.
+  const leads = useMemo(() => (lead ? [lead, ...retell.leads] : retell.leads), [lead, retell.leads]);
+  const activeLead = leads[selectedIndex] || null;
+  const quality = useMemo(() => scoreLead(activeLead), [activeLead]);
   // Retell's post-call analysis summary for the most recent call.
   const latestSummary = retell.calls[0]?.summary || "";
-  const leads = lead ? [lead] : [];
 
   return (
     <section className="section crm-section" aria-labelledby="crm-heading">
@@ -415,18 +417,18 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
                       </div>
                       {leads.map((item, index) => (
                         <LeadRow
-                          key={index}
+                          key={item.call_id || index}
                           lead={item}
-                          quality={quality}
-                          selected={selected}
-                          onSelect={() => setSelected(true)}
+                          quality={scoreLead(item)}
+                          selected={selectedIndex === index}
+                          onSelect={() => setSelectedIndex(index)}
                         />
                       ))}
                     </div>
                   )}
                 </div>
 
-                <LeadDetail lead={selected ? lead : null} quality={quality} callSummary={latestSummary} />
+                <LeadDetail lead={activeLead} quality={quality} callSummary={activeLead?.summary || latestSummary} />
               </div>
             </>
           )}

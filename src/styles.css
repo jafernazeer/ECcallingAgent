@@ -1802,3 +1802,64 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-device-frame { width: min(94vw, 340px); border-radius: 46px; }
   .crm-section .crm-shell { height: 620px; border-radius: 38px; }
 }
+
+/* ============================================================
+   Text colour inside the CRM
+   The dark section card sets color:#f7f5f2, which cascades into the
+   light CRM and makes body text invisible. Re-assert dark ink here.
+   ============================================================ */
+
+.crm-section .crm-shell,
+.crm-section .crm-shell p,
+.crm-section .crm-shell strong,
+.crm-section .crm-shell span,
+.crm-section .crm-shell dd,
+.crm-section .crm-shell li,
+.crm-section .crm-shell button,
+.crm-section .crm-shell input {
+  color: var(--ink);
+}
+
+.crm-section .crm-shell .crm-nav-item,
+.crm-section .crm-shell .crm-topbar p,
+.crm-section .crm-shell .crm-table-head span,
+.crm-section .crm-shell .crm-cell,
+.crm-section .crm-shell .funnel-label,
+.crm-section .crm-shell .kpi small,
+.crm-section .crm-shell .call-row-main small,
+.crm-section .crm-shell .crm-detail-sub,
+.crm-section .crm-shell .crm-notes p,
+.crm-section .crm-shell .crm-turn p {
+  color: var(--taupe);
+}
+
+.crm-section .crm-shell .crm-brand-text small,
+.crm-section .crm-shell .kpi-label,
+.crm-section .crm-shell dt,
+.crm-section .crm-shell .crm-turn-speaker,
+.crm-section .crm-shell .crm-empty,
+.crm-section .crm-shell .crm-placeholder p,
+.crm-section .crm-shell .crm-detail-empty-text,
+.crm-section .crm-shell .call-dur,
+.crm-section .crm-shell .spark-col small,
+.crm-section .crm-shell .crm-search,
+.crm-section .crm-shell .crm-transcript .crm-turn-speaker {
+  color: var(--ash);
+}
+
+/* Accents keep their own colour */
+.crm-section .crm-shell .crm-nav-item.is-active,
+.crm-section .crm-shell .crm-tab.is-active,
+.crm-section .crm-shell .crm-id,
+.crm-section .crm-shell .crm-status,
+.crm-section .crm-shell .crm-live { color: #0f7a4f; }
+
+.crm-section .crm-shell .crm-filter.is-active,
+.crm-section .crm-shell .btn-primary { color: #fff; }
+
+.crm-section .crm-shell .lead-field.is-filled dt,
+.crm-section .crm-shell .crm-turn.from-agent .crm-turn-speaker,
+.crm-section .crm-shell .line.from-agent .line-speaker { color: var(--violet); }
+
+.crm-section .crm-shell .eyebrow { color: var(--violet); }
+.crm-section .crm-shell .lead-placeholder { color: var(--dune); }

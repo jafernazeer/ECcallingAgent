@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
  */
 export function useRetellData() {
   const [calls, setCalls] = useState([]);
+  const [leads, setLeads] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [selectedCall, setSelectedCall] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,10 +15,12 @@ export function useRetellData() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [callsResponse, analyticsResponse] = await Promise.all([
+      const [callsResponse, analyticsResponse, leadsResponse] = await Promise.all([
         fetch("/api/retell/calls").then((r) => r.json()),
         fetch("/api/retell/analytics").then((r) => r.json()),
+        fetch("/api/retell/leads").then((r) => r.json()),
       ]);
+      if (leadsResponse?.ok) setLeads(leadsResponse.leads || []);
       if (callsResponse?.ok) setCalls(callsResponse.calls || []);
       else setError(callsResponse?.error || "Could not load call history.");
       if (analyticsResponse?.ok) setAnalytics(analyticsResponse);
@@ -42,7 +45,7 @@ export function useRetellData() {
     }
   }, []);
 
-  return { calls, analytics, selectedCall, loading, error, refresh, openCall };
+  return { calls, leads, analytics, selectedCall, loading, error, refresh, openCall };
 }
 
 export function formatClock(seconds) {

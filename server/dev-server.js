@@ -489,6 +489,85 @@ function summariseCall(call) {
   };
 }
 
+/**
+ * Parse Retell's post-call summary line into lead fields.
+ *
+ * Retell writes summaries as "Name: X; Company: Y; ... Requirement: Z", with an
+ * optional "(low confidence)" marker per field. Tool-call values remain the
+ * source of truth — this only backfills calls that predate the capture tools.
+ */
+function leadFromSummary(summary, callId) {
+  const text = String(summary || "");
+  if (!text.trim()) return null;
+
+  const grab = (label) => {
+    const match = new RegExp(`${label}\\s*:\\s*([^;\\n]+)`, "i").exec(text);
+    if (!match) return { value: "", confidence: "" };
+    let raw = match[1].trim().replace(/\.$/, "");
+    let confidence = "";
+    const conf = /\((high|low)\s*confidence\)/i.exec(raw);
+    if (conf) {
+      confidence = conf[1].toLowerCase();
+      raw = raw.replace(conf[0], "").trim();
+    }
+    // Some summaries omit the ";" separator and run into a sentence, e.g.
+    // "Jafar. No company or email provided" — cut at the sentence boundary.
+    raw = raw.split(/\.\s+(?=[A-Z])/)[0].trim();
+    raw = raw.replace(/^\[|\]$/g, "").trim();
+    if (/^(none|n\/a|not provided|unknown|not captured|no\b.*)$/i.test(raw)) return { value: "", confidence };
+    if (raw.length > 60) return { value: "", confidence };
+    return { value: raw, confidence };
+  };
+
+  const name = grab("Name");
+  const company = grab("Company");
+  const location = grab("Location");
+  const phone = grab("Contact Number");
+  const email = grab("Email");
+  const requirement = grab("Requirement");
+
+  const lead = {};
+  if (name.value) lead.customer_name = name.value;
+  if (company.value) lead.company_name = company.value;
+  if (location.value) lead.location = location.value;
+  if (location.confidence) lead.location_confidence = location.confidence;
+  if (phone.value) lead.phone_number = phone.value.replace(/[^\d+]/g, "");
+  if (phone.confidence) lead.phone_confidence = phone.confidence;
+  if (email.value) lead.email = email.value;
+  if (email.confidence) lead.email_confidence = email.confidence;
+  if (requirement.value) lead.requirement_summary = requirement.value;
+
+  if (!Object.keys(lead).length) return null;
+  return { ...lead, call_id: callId, source: "call_summary" };
+}
+
+/**
+ * Leads for the CRM: confirmed tool-call captures first, with summary-derived
+ * records filling in calls that have no tool data.
+ */
+app.get("/api/retell/leads", async (_request, response) => {
+  try {
+    const calls = await listRetellCalls();
+    const leads = calls.map((call) => {
+      const captured = liveLeads.get(call.call_id);
+      const summary = call.call_analysis?.call_summary || "";
+      const base = captured
+        ? { ...captured.fields, call_id: call.call_id, source: "tool_calls" }
+        : leadFromSummary(summary, call.call_id);
+      if (!base) return null;
+      return {
+        ...base,
+        summary,
+        startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)).toISOString() : "",
+      };
+    }).filter(Boolean);
+
+    response.json({ ok: true, leads });
+  } catch (error) {
+    response.json({ ok: false, leads: [], error: error.message });
+  }
+});
+
 /** Call history for the Call Transcripts tab. */
 app.get("/api/retell/calls", async (_request, response) => {
   try {
