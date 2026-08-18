@@ -1678,3 +1678,127 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 @media (prefers-reduced-motion: reduce) {
   .call-row, .crm-filter { transition: none; }
 }
+
+/* ============================================================
+   CRM inside the dark section card
+   ============================================================ */
+
+.crm-section .section-card { padding: 44px; }
+
+.crm-device {
+  position: relative;
+  z-index: 1;
+  margin-top: 30px;
+}
+
+/* Desktop: browser-style chrome around the light CRM */
+.crm-device-frame {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 34px 70px -40px rgba(0, 0, 0, 0.75);
+}
+
+.crm-section .crm-shell {
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* The CRM stays light inside the dark card — keep it readable */
+.crm-section .crm { width: 100%; padding: 0; }
+
+/* Internal scrolling so the frame never grows unbounded */
+.crm-section .crm-main { min-height: 0; }
+
+.crm-section .crm-body,
+.crm-section .crm-placeholder {
+  max-height: 560px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.crm-section .crm-body::-webkit-scrollbar,
+.crm-section .call-list::-webkit-scrollbar { width: 6px; }
+.crm-section .crm-body::-webkit-scrollbar-thumb,
+.crm-section .call-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--dune);
+}
+
+.crm-section .call-list,
+.crm-section .crm-transcript {
+  max-height: 470px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ============================================================
+   Mobile — CRM enclosed in the hero's handset
+   ============================================================ */
+
+@media (max-width: 760px) {
+  .crm-section .section-card { padding: 26px 16px 30px; border-radius: 24px; }
+  .crm-device { display: flex; justify-content: center; margin-top: 24px; }
+
+  /* Reuse the hero phone's frame treatment */
+  .crm-device-frame {
+    width: min(92vw, 370px);
+    padding: 8px;
+    border: 1px solid #6e6962;
+    border-radius: 52px;
+    background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #5c5853 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.9),
+      0 38px 28px -22px rgba(23, 21, 19, 0.5);
+  }
+
+  .crm-section .crm-shell {
+    height: 680px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    border-radius: 44px;
+    overflow: hidden;
+    background: var(--bone);
+  }
+
+  .crm-section .crm-main {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
+  /* Every tab body scrolls inside the handset */
+  .crm-section .crm-body,
+  .crm-section .crm-placeholder {
+    max-height: none;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .crm-section .call-list,
+  .crm-section .crm-transcript { max-height: none; overflow: visible; }
+
+  /* Tab bar pinned to the bottom of the screen, not the page */
+  .crm-section .crm-tabbar {
+    position: relative;
+    bottom: auto;
+    padding-bottom: 10px;
+  }
+
+  .crm-section .crm-topbar { padding: 16px 16px 10px; }
+  .crm-section .crm-topbar h2 { font-size: 24px; }
+  .crm-section .crm-toolbar { padding: 0 14px 10px; }
+  .crm-section .crm-body { padding: 0 12px 14px; }
+
+  .crm-section .kpi strong { font-size: 22px; }
+  .crm-section .spark { height: 96px; }
+}
+
+@media (max-width: 400px) {
+  .crm-device-frame { width: min(94vw, 340px); border-radius: 46px; }
+  .crm-section .crm-shell { height: 620px; border-radius: 38px; }
+}

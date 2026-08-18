@@ -291,8 +291,20 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
   const leads = lead ? [lead] : [];
 
   return (
-    <section className="crm" aria-label="EthikCorp lead dashboard">
-      <div className="crm-shell">
+    <section className="section crm-section" aria-labelledby="crm-heading">
+      <div className="section-card">
+        <div className="section-head">
+          <p className="eyebrow">Live CRM</p>
+          <h2 id="crm-heading">Leads Captured</h2>
+          <p className="section-sub">
+            Every call the agent takes lands here — the lead it captured, the transcript it kept,
+            and the summary it wrote.
+          </p>
+        </div>
+
+        <div className="crm-device">
+          <div className="crm-device-frame">
+            <div className="crm-shell">
         {/* Sidebar — desktop */}
         <nav className="crm-sidebar" aria-label="Dashboard sections">
           <div className="crm-brand">
@@ -436,6 +448,9 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
               );
             })}
           </nav>
+            </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
