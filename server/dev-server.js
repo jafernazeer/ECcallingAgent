@@ -166,13 +166,20 @@ function collectToolCalls(value, depth = 0) {
   ];
 }
 
+const LEAD_TOOL_NAMES = new Set([
+  "capture_identity",
+  "capture_requirement",
+  "capture_contact",
+  "submit_lead",
+]);
+
 function findSubmitLeadArguments(payload) {
-  const toolCall = collectToolCalls(payload).find((item) => getToolName(item) === "submit_lead");
+  const toolCall = collectToolCalls(payload).find((item) => LEAD_TOOL_NAMES.has(getToolName(item)));
   return parseMaybeJson(getToolArguments(toolCall)) || payload?.arguments || payload?.parameters || payload;
 }
 
 function findSubmitLeadToolCall(payload) {
-  return collectToolCalls(payload).find((item) => getToolName(item) === "submit_lead") || null;
+  return collectToolCalls(payload).find((item) => LEAD_TOOL_NAMES.has(getToolName(item))) || null;
 }
 
 function getVapiCallId(payload) {
@@ -279,7 +286,7 @@ app.post("/api/vapi/lead-tool", async (request, response) => {
       sessionId,
       externalCallId: vapiCallId || null,
       at: new Date().toISOString(),
-      source: "Vapi submit_lead tool",
+      source: `Vapi ${getToolName(toolCall) || "submit_lead"} tool`,
       lead: args,
     }, request.body);
 

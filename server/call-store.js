@@ -73,7 +73,7 @@ function normalizeCapturedLead(value) {
   const lead = {
     name: cleanText(data.customer_name || data.customerName || data.name, "Caller"),
     company: cleanCapturedCompany(data.company_name || data.companyName || data.company, email),
-    phone: cleanText(data.contact_number || data.contactNumber || data.phone, "Browser call"),
+    phone: cleanText(data.phone_number || data.phoneNumber || data.contact_number || data.contactNumber || data.phone, "Browser call"),
     email,
     place: cleanText(data.location || data.place, "Not captured"),
     requirement: cleanText(data.requirement_summary || data.requirementSummary || data.requirement, "Live EthikCorp Agent inquiry"),

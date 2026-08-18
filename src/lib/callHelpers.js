@@ -234,19 +234,53 @@ function cleanCapturedCompany(company, email) {
   return isEmailDerivedCompany(cleaned, email) ? "" : cleaned;
 }
 
-function normalizeSubmitLeadArgs(args) {
+const LEAD_TOOL_NAMES = new Set([
+  "capture_identity",
+  "capture_requirement",
+  "capture_contact",
+  "submit_lead",
+]);
+
+/**
+ * Map any of the v2 capture tools (or a legacy single-shot submit_lead payload)
+ * onto the portal's internal lead shape. Only keys the tool actually supplied
+ * are returned, so partial results merge cleanly instead of blanking fields.
+ */
+function normalizeLeadToolArgs(args) {
   const data = parseMaybeJson(args);
   if (!data || typeof data !== "object") return null;
+
   const email = String(data.email_id || data.emailId || data.email || "").trim();
-  const lead = {
-    name: String(data.customer_name || data.customerName || data.name || "").trim(),
-    company: cleanCapturedCompany(data.company_name || data.companyName || data.company, email),
-    place: String(data.location || data.place || "").trim(),
-    requirement: String(data.requirement_summary || data.requirementSummary || data.requirement || "").trim(),
-    phone: String(data.contact_number || data.contactNumber || data.phone || "").trim(),
-    email,
-  };
-  return lead.name || lead.company || lead.place || lead.requirement || lead.phone || lead.email ? lead : null;
+  const name = String(data.customer_name || data.customerName || data.name || "").trim();
+  const company = cleanCapturedCompany(data.company_name || data.companyName || data.company, email);
+  const place = String(data.location || data.place || "").trim();
+  const requirement = String(data.requirement_summary || data.requirementSummary || data.requirement || "").trim();
+  const phone = String(
+    data.phone_number || data.phoneNumber
+    || data.contact_number || data.contactNumber
+    || data.phone || "",
+  ).trim();
+  const industry = String(data.industry || "").trim();
+  const serviceArea = String(data.service_area || data.serviceArea || data.service_interest || "").trim();
+
+  const lead = {};
+  if (name) lead.name = name;
+  if (company) lead.company = company;
+  if (place) lead.place = place;
+  if (requirement) lead.requirement = requirement;
+  if (phone) lead.phone = phone;
+  if (email) lead.email = email;
+  if (industry) lead.industry = industry;
+  if (serviceArea) lead.serviceArea = serviceArea;
+
+  // v2 confidence + routing flags
+  if (data.location_confidence) lead.locationConfidence = String(data.location_confidence).toLowerCase();
+  if (data.phone_confidence) lead.phoneConfidence = String(data.phone_confidence).toLowerCase();
+  if (data.email_confidence) lead.emailConfidence = String(data.email_confidence).toLowerCase();
+  if (typeof data.needs_human_review === "boolean") lead.needsHumanReview = data.needs_human_review;
+  if (data.call_outcome) lead.callOutcome = String(data.call_outcome).trim();
+
+  return Object.keys(lead).length ? lead : null;
 }
 
 function getToolName(toolCall) {
@@ -295,10 +329,10 @@ export function extractSubmitLeadEvents(message) {
   return collectToolCalls(message)
     .map((toolCall) => {
       const name = getToolName(toolCall);
-      if (name !== "submit_lead") return null;
-      const lead = normalizeSubmitLeadArgs(getToolArguments(toolCall));
+      if (!LEAD_TOOL_NAMES.has(name)) return null;
+      const lead = normalizeLeadToolArgs(getToolArguments(toolCall));
       if (!lead) return null;
-      const key = JSON.stringify(lead);
+      const key = `${name}:${JSON.stringify(lead)}`;
       if (seen.has(key)) return null;
       seen.add(key);
       return {
