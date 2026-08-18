@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useRetellData, formatClock, formatWhen, callerNameFromSummary } from "../lib/useRetellData.js";
 import {
   CalendarDays,
   Grid2X2,
@@ -62,7 +63,7 @@ function LeadRow({ lead, quality, selected, onSelect }) {
   );
 }
 
-function LeadDetail({ lead, quality }) {
+function LeadDetail({ lead, quality, callSummary }) {
   if (!lead) {
     return (
       <aside className="crm-detail is-empty">
@@ -101,7 +102,7 @@ function LeadDetail({ lead, quality }) {
 
       <div className="crm-notes">
         <span>Extracted transcript notes</span>
-        <p>{lead.requirement_summary || "Requirement not captured on this call."}</p>
+        <p>{callSummary || lead.requirement_summary || "Requirement not captured on this call."}</p>
       </div>
     </aside>
   );
@@ -138,10 +139,155 @@ function TranscriptView({ transcript }) {
   );
 }
 
+function OverviewTab({ analytics, loading }) {
+  const totals = analytics?.totals;
+  const series = analytics?.series || [];
+  const max = Math.max(1, ...series.map((row) => row.calls));
+
+  if (loading && !totals) return <div className="crm-placeholder"><p>Loading live metrics…</p></div>;
+  if (!totals) return <div className="crm-placeholder"><p>Live metrics are unavailable right now.</p></div>;
+
+  const answeredPct = totals.calls ? Math.round((totals.answered / totals.calls) * 100) : 0;
+  const successPct = totals.calls ? Math.round((totals.successful / totals.calls) * 100) : 0;
+
+  const funnel = [
+    { label: "Total Calls", value: totals.calls, pct: 100 },
+    { label: "Answered", value: totals.answered, pct: answeredPct },
+    { label: "Successful", value: totals.successful, pct: successPct },
+  ];
+
+  return (
+    <div className="crm-body crm-body-single">
+      <div className="kpi-row">
+        <div className="kpi"><span className="kpi-label">Total Calls</span><strong>{totals.calls}</strong><small>{totals.answered} answered · {answeredPct}%</small></div>
+        <div className="kpi"><span className="kpi-label">Successful</span><strong>{totals.successful}</strong><small>{successPct}% of calls</small></div>
+        <div className="kpi"><span className="kpi-label">Avg Duration</span><strong>{formatClock(totals.avgDurationSeconds)}</strong><small>per conversation</small></div>
+      </div>
+
+      <div className="crm-table-card">
+        <div className="crm-table-head"><strong>Call Volume</strong><span>Last {series.length} day(s)</span></div>
+        <div className="spark">
+          {series.map((row) => (
+            <div key={row.day} className="spark-col" title={`${row.day}: ${row.calls} calls`}>
+              <span className="spark-bar" style={{ height: `${Math.round((row.calls / max) * 100)}%` }} />
+              <small>{row.day.slice(5)}</small>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="crm-table-card">
+        <div className="crm-table-head"><strong>Conversion Funnel</strong><span>Retell call analysis</span></div>
+        <div className="funnel">
+          {funnel.map((step) => (
+            <div key={step.label} className="funnel-row">
+              <span className="funnel-label">{step.label}</span>
+              <span className="funnel-track"><span className="funnel-fill" style={{ width: `${step.pct}%` }} /></span>
+              <span className="funnel-value">{step.value} <small>({step.pct}%)</small></span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CallsTab({ calls, selectedCall, openCall, loading }) {
+  if (loading && !calls.length) return <div className="crm-placeholder"><p>Loading call history…</p></div>;
+  if (!calls.length) return <div className="crm-placeholder"><p>No calls recorded yet. Start a call to see it here.</p></div>;
+
+  return (
+    <div className="crm-body">
+      <div className="crm-table-card">
+        <div className="crm-table-head">
+          <strong>Past Call Records</strong>
+          <span>{calls.length} calls</span>
+        </div>
+        <div className="call-list">
+          {calls.map((call) => {
+            const active = selectedCall?.callId === call.callId;
+            const name = callerNameFromSummary(call.summary);
+            return (
+              <React.Fragment key={call.callId}>
+                <button
+                  type="button"
+                  className={`call-row ${active ? "is-selected" : ""}`}
+                  onClick={() => openCall(call.callId)}
+                >
+                  <span className="call-row-main">
+                    <strong>{name || call.direction.replace(/_/g, " ")}</strong>
+                    <small>{formatWhen(call.startedAt)}</small>
+                  </span>
+                  <span className="call-row-meta">
+                    <span className="call-dur">{formatClock(call.durationSeconds)}</span>
+                    {call.successful !== undefined && (
+                      <span className={`chip-quality ${call.successful ? "tier-hot" : "tier-cold"}`}>
+                        {call.successful ? "Successful" : "Incomplete"}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                {/* Mobile: transcript expands beneath the selected row */}
+                {active && <div className="call-inline-transcript"><TranscriptPanel call={selectedCall} /></div>}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: transcript sits to the right */}
+      <aside className="crm-detail call-detail-panel">
+        {selectedCall ? <TranscriptPanel call={selectedCall} /> : <p className="crm-detail-empty-text">Select a call to read its transcript.</p>}
+      </aside>
+    </div>
+  );
+}
+
+function TranscriptPanel({ call }) {
+  if (!call) return null;
+  if (call.loading) return <p className="crm-detail-empty-text">Loading transcript…</p>;
+  if (call.error) return <p className="crm-detail-empty-text">That transcript could not be loaded.</p>;
+
+  return (
+    <div className="transcript-panel">
+      <div className="crm-detail-top">
+        <span className="crm-id">{call.callId?.slice(0, 18)}…</span>
+        <span className="call-dur">{formatClock(call.durationSeconds)}</span>
+      </div>
+      {call.summary && (
+        <div className="crm-notes">
+          <span>AI Call Summary</span>
+          <p>{call.summary}</p>
+        </div>
+      )}
+      <ol className="crm-transcript">
+        {call.transcript.map((turn) => (
+          <li key={turn.id} className={`crm-turn from-${turn.speaker}`}>
+            <span className="crm-turn-speaker">{turn.speaker === "agent" ? "EC Calling Agent" : "Caller"}</span>
+            <p>{turn.text}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function BookingsTab() {
+  return (
+    <div className="crm-placeholder">
+      <p>No bookings captured so far.</p>
+      <small className="crm-placeholder-note">Appointments will appear here once scheduling is connected.</small>
+    </div>
+  );
+}
+
 export function LeadDashboard({ lead, transcript = [], callActive }) {
   const [activeNav, setActiveNav] = useState("leads");
+  const retell = useRetellData();
   const [selected, setSelected] = useState(true);
   const quality = useMemo(() => scoreLead(lead), [lead]);
+  // Retell's post-call analysis summary for the most recent call.
+  const latestSummary = retell.calls[0]?.summary || "";
   const leads = lead ? [lead] : [];
 
   return (
@@ -170,7 +316,7 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
                     <Icon size={17} aria-hidden="true" />
                     {item.label}
                     {item.id === "leads" && leads.length > 0 && <span className="crm-count">{leads.length}</span>}
-                    {item.id === "calls" && transcript.length > 0 && <span className="crm-count">{transcript.length}</span>}
+                    {item.id === "calls" && retell.calls.length > 0 && <span className="crm-count">{retell.calls.length}</span>}
                   </button>
                 </li>
               );
@@ -202,8 +348,17 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
             </div>
           </header>
 
-          {activeNav === "calls" ? (
-            <TranscriptView transcript={transcript} />
+          {activeNav === "overview" ? (
+            <OverviewTab analytics={retell.analytics} loading={retell.loading} />
+          ) : activeNav === "calls" ? (
+            <CallsTab
+              calls={retell.calls}
+              selectedCall={retell.selectedCall}
+              openCall={retell.openCall}
+              loading={retell.loading}
+            />
+          ) : activeNav === "bookings" ? (
+            <BookingsTab />
           ) : activeNav !== "leads" ? (
             <div className="crm-placeholder">
               <p>{NAV.find((item) => item.id === activeNav)?.label} is part of the full EthikCorp CRM.</p>
@@ -259,7 +414,7 @@ export function LeadDashboard({ lead, transcript = [], callActive }) {
                   )}
                 </div>
 
-                <LeadDetail lead={selected ? lead : null} quality={quality} />
+                <LeadDetail lead={selected ? lead : null} quality={quality} callSummary={latestSummary} />
               </div>
             </>
           )}

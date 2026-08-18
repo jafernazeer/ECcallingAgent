@@ -433,6 +433,138 @@ app.post("/api/retell/web-call", async (request, response) => {
   }
 });
 
+/** Cached Retell call list — the dashboard reads through these, not the DB. */
+const retellCache = { calls: null, at: 0 };
+const RETELL_CACHE_MS = 30000;
+
+async function retellFetch(path, options = {}) {
+  if (!retellApiKey) throw new Error("Retell is not configured on this server.");
+  const response = await fetch(`${retellApiBase}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${retellApiKey}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Retell ${path} failed (${response.status}) ${detail.slice(0, 180)}`);
+  }
+  return response.json();
+}
+
+async function listRetellCalls({ force = false } = {}) {
+  if (!force && retellCache.calls && Date.now() - retellCache.at < RETELL_CACHE_MS) {
+    return retellCache.calls;
+  }
+  const result = await retellFetch("/v2/list-calls", {
+    method: "POST",
+    body: JSON.stringify({
+      filter_criteria: retellAgentId ? { agent_id: [retellAgentId] } : undefined,
+      limit: 100,
+      sort_order: "descending",
+    }),
+  });
+  const calls = Array.isArray(result) ? result : (result?.calls || []);
+  retellCache.calls = calls;
+  retellCache.at = Date.now();
+  return calls;
+}
+
+function summariseCall(call) {
+  const analysis = call.call_analysis || {};
+  const start = Number(call.start_timestamp || 0);
+  const end = Number(call.end_timestamp || 0);
+  return {
+    callId: call.call_id,
+    startedAt: start ? new Date(start).toISOString() : "",
+    durationSeconds: start && end ? Math.round((end - start) / 1000) : 0,
+    direction: call.direction || call.call_type || "web_call",
+    disconnectionReason: call.disconnection_reason || "",
+    successful: analysis.call_successful,
+    sentiment: analysis.user_sentiment || "",
+    summary: analysis.call_summary || "",
+    cost: call.call_cost?.combined_cost ?? null,
+  };
+}
+
+/** Call history for the Call Transcripts tab. */
+app.get("/api/retell/calls", async (_request, response) => {
+  try {
+    const calls = await listRetellCalls();
+    response.json({ ok: true, calls: calls.map(summariseCall) });
+  } catch (error) {
+    response.json({ ok: false, calls: [], error: error.message });
+  }
+});
+
+/** Full transcript + analysis for one call. */
+app.get("/api/retell/calls/:callId", async (request, response) => {
+  try {
+    const call = await retellFetch(`/v2/get-call/${encodeURIComponent(request.params.callId)}`);
+    const turns = Array.isArray(call.transcript_object)
+      ? call.transcript_object
+          .filter((turn) => String(turn?.content || "").trim())
+          .map((turn, index) => ({
+            id: `${call.call_id}-${index}`,
+            speaker: turn.role === "agent" ? "agent" : "user",
+            text: String(turn.content).trim(),
+          }))
+      : [];
+    response.json({ ok: true, call: { ...summariseCall(call), transcript: turns } });
+  } catch (error) {
+    response.json({ ok: false, call: null, error: error.message });
+  }
+});
+
+/**
+ * Aggregate metrics for the Overview tab.
+ *
+ * Retell exposes no aggregate analytics endpoint — the dashboard charts are
+ * rendered from an internal, cookie-authenticated route. We derive the same
+ * numbers from the call list instead.
+ */
+app.get("/api/retell/analytics", async (_request, response) => {
+  try {
+    const calls = await listRetellCalls();
+    const answered = calls.filter((call) => Number(call.end_timestamp || 0) > 0);
+    const withLead = calls.filter((call) => liveLeads.has(call.call_id));
+    const successful = calls.filter((call) => call.call_analysis?.call_successful);
+
+    const byDay = new Map();
+    calls.forEach((call) => {
+      const ts = Number(call.start_timestamp || 0);
+      if (!ts) return;
+      const day = new Date(ts).toISOString().slice(0, 10);
+      const row = byDay.get(day) || { day, calls: 0, leads: 0 };
+      row.calls += 1;
+      if (liveLeads.has(call.call_id)) row.leads += 1;
+      byDay.set(day, row);
+    });
+
+    const totalSeconds = calls.reduce((sum, call) => {
+      const start = Number(call.start_timestamp || 0);
+      const end = Number(call.end_timestamp || 0);
+      return sum + (start && end ? (end - start) / 1000 : 0);
+    }, 0);
+
+    response.json({
+      ok: true,
+      totals: {
+        calls: calls.length,
+        answered: answered.length,
+        leads: withLead.length,
+        successful: successful.length,
+        avgDurationSeconds: calls.length ? Math.round(totalSeconds / calls.length) : 0,
+      },
+      series: [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(-14),
+    });
+  } catch (error) {
+    response.json({ ok: false, totals: null, series: [], error: error.message });
+  }
+});
+
 /** Read the merged, in-memory lead for a call. No database involved. */
 app.get("/api/lead/:callId", (request, response) => {
   pruneLiveLeads();

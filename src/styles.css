@@ -1431,3 +1431,250 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-transcript { max-height: 340px; }
   .crm-turn { padding: 10px 15px; }
 }
+
+/* ============================================================
+   CRM — live Retell tabs
+   ============================================================ */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  display: grid;
+  gap: 3px;
+  padding: 16px 17px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.kpi-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+.kpi strong {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi small { color: var(--taupe); font-size: 11.5px; }
+
+/* Sparkline */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 150px;
+  padding: 18px 17px 12px;
+}
+
+.spark-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+}
+
+.spark-bar {
+  width: 100%;
+  max-width: 34px;
+  min-height: 4px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #38c986, #10a86a);
+}
+
+.spark-col small { color: var(--ash); font-size: 9.5px; white-space: nowrap; }
+
+/* Funnel */
+.funnel { display: grid; gap: 13px; padding: 17px; }
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.funnel-label { color: var(--taupe); font-size: 12.5px; font-weight: 500; }
+
+.funnel-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--parchment);
+  overflow: hidden;
+}
+
+.funnel-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10a86a, #38c986);
+}
+
+.funnel-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-value small { color: var(--ash); font-weight: 400; }
+
+/* Call list */
+.call-list { display: flex; flex-direction: column; }
+
+.call-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 17px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  text-align: left;
+  font: inherit;
+  transition: background-color 180ms var(--ease);
+}
+
+.call-row:first-child { border-top: 0; }
+.call-row:hover { background: #f7f8fc; }
+.call-row.is-selected { background: rgba(56, 201, 134, 0.08); }
+
+.call-row-main { display: grid; gap: 2px; min-width: 0; }
+.call-row-main strong { font-size: 13.5px; font-weight: 600; text-transform: capitalize; }
+.call-row-main small { color: var(--ash); font-size: 11.5px; }
+
+.call-row-meta { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+
+.call-dur {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  color: var(--taupe);
+  font-variant-numeric: tabular-nums;
+}
+
+.transcript-panel { display: grid; gap: 12px; }
+.crm-detail-empty-text { margin: 0; padding: 28px 6px; text-align: center; color: var(--ash); font-size: 13px; }
+.crm-placeholder-note { color: var(--dune); font-size: 11.5px; }
+
+/* Transcript expands inline only on mobile */
+.call-inline-transcript { display: none; }
+
+/* ============================================================
+   Mobile — minimal iOS treatment
+   ============================================================ */
+
+@media (max-width: 760px) {
+  .crm { padding: 18px 0 0; }
+
+  .crm-shell {
+    border: 0;
+    border-radius: 0;
+    background: var(--bone);
+    box-shadow: none;
+  }
+
+  /* Large-title header, iOS style */
+  .crm-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 18px 14px;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .crm-topbar h2 {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+  }
+
+  .crm-topbar-actions { width: 100%; justify-content: flex-start; }
+
+  /* Flat cards, hairline separators — no heavy borders */
+  .crm-table-card,
+  .crm-detail,
+  .kpi {
+    border: 0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(23, 21, 19, 0.05);
+  }
+
+  .crm-body { padding: 0 14px 18px; gap: 12px; }
+  .crm-toolbar { padding: 0 14px 12px; }
+
+  .crm-search {
+    border: 0;
+    border-radius: 12px;
+    background: rgba(120, 120, 128, 0.09);
+  }
+
+  .crm-filters { gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .crm-filters::-webkit-scrollbar { display: none; }
+
+  .crm-filter {
+    flex: none;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(120, 120, 128, 0.09);
+    font-size: 12px;
+  }
+
+  .crm-filter.is-active { background: #10a86a; color: #fff; }
+
+  /* KPIs stack to two columns, first one full width */
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:first-child { grid-column: 1 / -1; }
+  .kpi strong { font-size: 26px; }
+
+  .spark { height: 116px; gap: 4px; padding: 14px 13px 10px; }
+  .spark-col small { display: none; }
+
+  .funnel-row { grid-template-columns: 88px minmax(0, 1fr) auto; gap: 9px; }
+  .funnel-label { font-size: 11.5px; }
+
+  /* Transcript moves beneath the tapped call */
+  .call-detail-panel { display: none; }
+  .call-inline-transcript {
+    display: block;
+    padding: 4px 15px 16px;
+    border-top: 1px solid var(--line);
+    background: #fbfbfd;
+  }
+
+  .call-row { padding: 14px 15px; min-height: 60px; }
+
+  /* Tab bar — iOS translucent */
+  .crm-tabbar {
+    padding: 6px 4px max(10px, env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid rgba(60, 60, 67, 0.13);
+  }
+
+  .crm-tab { font-size: 9px; letter-spacing: -0.01em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-row, .crm-filter { transition: none; }
+}
