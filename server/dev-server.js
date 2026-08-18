@@ -64,7 +64,7 @@ function mergeLiveLead(callId, toolName, args) {
     if (cleaned !== undefined && cleaned !== null && cleaned !== "") next[key] = cleaned;
   };
 
-  assign("customer_name", data.customer_name || data.customerName || data.name);
+  assign("customer_name", data.customer_name || data.customerName);
   assign("company_name", data.company_name || data.companyName || data.company);
   assign("location", data.location || data.place);
   assign("location_confidence", data.location_confidence);
@@ -199,6 +199,7 @@ function getToolArguments(toolCall) {
     || toolCall?.function_call?.arguments
     || toolCall?.parameters
     || toolCall?.arguments
+    || toolCall?.args
     || toolCall?.input
     || null;
 }
@@ -234,7 +235,9 @@ const LEAD_TOOL_NAMES = new Set([
 
 function findSubmitLeadArguments(payload) {
   const toolCall = collectToolCalls(payload).find((item) => LEAD_TOOL_NAMES.has(getToolName(item)));
-  return parseMaybeJson(getToolArguments(toolCall)) || payload?.arguments || payload?.parameters || payload;
+  // Never fall back to the whole webhook body: its top-level `name` is the
+  // tool name, which would land in the lead as the customer's name.
+  return parseMaybeJson(getToolArguments(toolCall)) || parseMaybeJson(payload?.args) || {};
 }
 
 function findSubmitLeadToolCall(payload) {

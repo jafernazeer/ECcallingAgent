@@ -107,7 +107,38 @@ function LeadDetail({ lead, quality }) {
   );
 }
 
-export function LeadDashboard({ lead, callActive }) {
+function TranscriptView({ transcript }) {
+  if (!transcript.length) {
+    return (
+      <div className="crm-placeholder">
+        <p>The transcript of your last call appears here once the call ends.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="crm-body crm-body-single">
+      <div className="crm-table-card">
+        <div className="crm-table-head">
+          <strong>Last Call Transcript</strong>
+          <span>{transcript.length} turns · captured live</span>
+        </div>
+        <ol className="crm-transcript">
+          {transcript.map((entry) => (
+            <li key={entry.id} className={`crm-turn from-${entry.speaker}`}>
+              <span className="crm-turn-speaker">
+                {entry.speaker === "agent" ? "EC Calling Agent" : "Caller"}
+              </span>
+              <p>{entry.text}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+export function LeadDashboard({ lead, transcript = [], callActive }) {
   const [activeNav, setActiveNav] = useState("leads");
   const [selected, setSelected] = useState(true);
   const quality = useMemo(() => scoreLead(lead), [lead]);
@@ -139,6 +170,7 @@ export function LeadDashboard({ lead, callActive }) {
                     <Icon size={17} aria-hidden="true" />
                     {item.label}
                     {item.id === "leads" && leads.length > 0 && <span className="crm-count">{leads.length}</span>}
+                    {item.id === "calls" && transcript.length > 0 && <span className="crm-count">{transcript.length}</span>}
                   </button>
                 </li>
               );
@@ -170,7 +202,9 @@ export function LeadDashboard({ lead, callActive }) {
             </div>
           </header>
 
-          {activeNav !== "leads" ? (
+          {activeNav === "calls" ? (
+            <TranscriptView transcript={transcript} />
+          ) : activeNav !== "leads" ? (
             <div className="crm-placeholder">
               <p>{NAV.find((item) => item.id === activeNav)?.label} is part of the full EthikCorp CRM.</p>
               <button type="button" className="btn btn-ghost" onClick={() => setActiveNav("leads")}>

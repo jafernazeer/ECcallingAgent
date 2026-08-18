@@ -251,7 +251,7 @@ function normalizeLeadToolArgs(args) {
   if (!data || typeof data !== "object") return null;
 
   const email = String(data.email_id || data.emailId || data.email || "").trim();
-  const name = String(data.customer_name || data.customerName || data.name || "").trim();
+  const name = String(data.customer_name || data.customerName || "").trim();
   const company = cleanCapturedCompany(data.company_name || data.companyName || data.company, email);
   const place = String(data.location || data.place || "").trim();
   const requirement = String(data.requirement_summary || data.requirementSummary || data.requirement || "").trim();
@@ -298,6 +298,7 @@ function getToolArguments(toolCall) {
     || toolCall?.function_call?.arguments
     || toolCall?.parameters
     || toolCall?.arguments
+    || toolCall?.args
     || toolCall?.input
     || null;
 }

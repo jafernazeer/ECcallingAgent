@@ -1387,3 +1387,47 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-detail-fields > div { flex-direction: column; align-items: flex-start; gap: 2px; }
   .crm-detail-fields dd { text-align: left; }
 }
+
+/* CRM — transcript tab */
+.crm-body-single { grid-template-columns: minmax(0, 1fr); }
+
+.crm-transcript {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.crm-turn {
+  padding: 11px 17px;
+  border-top: 1px solid var(--line);
+}
+
+.crm-turn:first-child { border-top: 0; }
+
+.crm-turn-speaker {
+  display: block;
+  margin-bottom: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+.crm-turn.from-agent .crm-turn-speaker { color: var(--violet); }
+.crm-turn.from-user .crm-turn-speaker { color: #0f7a4f; }
+
+.crm-turn p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--graphite);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .crm-transcript { max-height: 340px; }
+  .crm-turn { padding: 10px 15px; }
+}
