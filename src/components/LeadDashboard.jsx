@@ -7,7 +7,6 @@ import {
   Moon,
   PhoneCall,
   Search,
-  Smartphone,
   UsersRound,
 } from "lucide-react";
 
@@ -17,7 +16,6 @@ const NAV = [
   { id: "leads", label: "Leads", icon: UsersRound },
   { id: "bookings", label: "Bookings", icon: CalendarDays },
   { id: "email", label: "Email Updates", icon: Mail, mobileLabel: "Email" },
-  { id: "test", label: "Test Voice Agent", icon: Smartphone, mobileLabel: "Test" },
 ];
 
 /** Heuristic quality score from how complete + confident the capture was. */
@@ -274,9 +272,77 @@ function TranscriptPanel({ call }) {
 
 function BookingsTab() {
   return (
-    <div className="crm-placeholder">
-      <p>No bookings captured so far.</p>
-      <small className="crm-placeholder-note">Appointments will appear here once scheduling is connected.</small>
+    <>
+      <div className="crm-toolbar">
+        <div>
+          <strong className="crm-toolbar-title">Client Bookings &amp; Consultations</strong>
+          <span className="crm-toolbar-sub">Appointments auto-scheduled by EC Calling Agent</span>
+        </div>
+        <span className="crm-filters">
+          <button type="button" className="crm-filter is-active">All</button>
+          <button type="button" className="crm-filter">Confirmed</button>
+          <button type="button" className="crm-filter">Pending</button>
+          <button type="button" className="crm-filter">Completed</button>
+        </span>
+      </div>
+      <div className="crm-body crm-body-single">
+        <div className="crm-placeholder">
+          <p>No bookings captured so far.</p>
+          <small className="crm-placeholder-note">Confirmed appointments will appear here as cards — caller, company, phone, date &amp; time, and call context notes.</small>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EmailTab() {
+  return (
+    <div className="crm-body crm-body-email">
+      <div className="crm-table-card">
+        <div className="crm-table-head">
+          <strong>Email Recipients (0)</strong>
+          <span>Team members who receive live call summaries</span>
+        </div>
+        <div className="email-add-row">
+          <input type="text" placeholder="Full Name" disabled />
+          <input type="email" placeholder="email@company.com" disabled />
+          <select disabled defaultValue="">
+            <option value="" disabled>Role</option>
+          </select>
+          <button type="button" className="btn btn-primary" disabled>Add Recipient</button>
+        </div>
+        <p className="crm-empty">No recipients added yet.</p>
+      </div>
+
+      <div className="crm-table-card">
+        <div className="crm-table-head">
+          <strong>Notification Triggers</strong>
+          <span>Choose when updates are sent to your team</span>
+        </div>
+        <ul className="trigger-list">
+          <li>
+            <div>
+              <strong>Instant Call Summary Emails</strong>
+              <p>Send lead details &amp; transcript summary immediately after each call</p>
+            </div>
+            <span className="toggle" aria-hidden="true" />
+          </li>
+          <li>
+            <div>
+              <strong>Daily Call Analytics Summary</strong>
+              <p>Send a daily report of call volume, leads captured &amp; meetings booked</p>
+            </div>
+            <span className="toggle" aria-hidden="true" />
+          </li>
+          <li>
+            <div>
+              <strong>Hot Lead High-Priority Alerts</strong>
+              <p>Urgent notification when a high-quality lead is qualified</p>
+            </div>
+            <span className="toggle" aria-hidden="true" />
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -384,6 +450,8 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
             />
           ) : activeNav === "bookings" ? (
             <BookingsTab />
+          ) : activeNav === "email" ? (
+            <EmailTab />
           ) : activeNav !== "leads" ? (
             <div className="crm-placeholder">
               <p>{NAV.find((item) => item.id === activeNav)?.label} is part of the full EthikCorp CRM.</p>
