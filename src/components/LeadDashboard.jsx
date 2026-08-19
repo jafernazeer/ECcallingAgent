@@ -281,9 +281,20 @@ function BookingsTab() {
   );
 }
 
-export function LeadDashboard({ lead, transcript = [], callActive }) {
+export function LeadDashboard({ lead, transcript = [], callActive, completedCall }) {
   const [activeNav, setActiveNav] = useState("leads");
   const retell = useRetellData();
+
+  // When a call just finished, pull fresh Retell data so the new lead,
+  // transcript and analytics appear without a manual reload. Retell needs a
+  // moment to analyse, so refresh once shortly after and again a little later.
+  React.useEffect(() => {
+    if (!completedCall?.sessionId) return undefined;
+    const t1 = window.setTimeout(() => retell.refresh(), 2500);
+    const t2 = window.setTimeout(() => retell.refresh(), 9000);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedCall?.sessionId]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   // Live leads from Retell, with the in-call capture pinned first.
   const leads = useMemo(() => (lead ? [lead, ...retell.leads] : retell.leads), [lead, retell.leads]);

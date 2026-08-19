@@ -1755,43 +1755,58 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
       0 38px 28px -22px rgba(23, 21, 19, 0.5);
   }
 
+  /* Fixed-height handset: header pinned, one scroll region, tabbar always on. */
   .crm-section .crm-shell {
-    height: 680px;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    height: 640px;
+    display: flex;
+    flex-direction: column;
     border-radius: 44px;
     overflow: hidden;
     background: var(--bone);
   }
 
   .crm-section .crm-main {
+    flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* Every tab body scrolls inside the handset */
+  /* Topbar stays put */
+  .crm-section .crm-topbar { flex: none; }
+
+  .crm-section .crm-toolbar { flex: none; }
+
+  /* The tab body is the single scroll region — same height on every tab, so
+     the pinned footer never moves. */
   .crm-section .crm-body,
   .crm-section .crm-placeholder {
-    max-height: none;
+    flex: 1;
     min-height: 0;
+    max-height: none;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .crm-section .call-list,
   .crm-section .crm-transcript { max-height: none; overflow: visible; }
 
-  /* Tab bar pinned to the bottom of the screen, not the page */
+  /* Footer nav: always visible, pinned to the bottom of the handset */
   .crm-section .crm-tabbar {
     position: relative;
     bottom: auto;
+    flex: none;
     padding-bottom: 10px;
+    border-top: 1px solid rgba(60, 60, 67, 0.13);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
 
   .crm-section .crm-topbar { padding: 16px 16px 10px; }
   .crm-section .crm-topbar h2 { font-size: 24px; }
-  .crm-section .crm-toolbar { padding: 0 14px 10px; }
+  .crm-section .crm-toolbar { padding: 10px 14px; }
   .crm-section .crm-body { padding: 0 12px 14px; }
 
   .crm-section .kpi strong { font-size: 22px; }
@@ -1800,7 +1815,7 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 
 @media (max-width: 400px) {
   .crm-device-frame { width: min(94vw, 340px); border-radius: 46px; }
-  .crm-section .crm-shell { height: 620px; border-radius: 38px; }
+  .crm-section .crm-shell { height: 580px; border-radius: 38px; }
 }
 
 /* ============================================================

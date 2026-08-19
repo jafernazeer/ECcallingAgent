@@ -29,7 +29,12 @@ export default function App() {
         </section>
 
         <div className="content-shell">
-          <LeadDashboard lead={call.lead} transcript={call.transcript} callActive={call.isActive} />
+          <LeadDashboard
+            lead={call.lead}
+            transcript={call.transcript}
+            callActive={call.isActive}
+            completedCall={call.completedCall}
+          />
 
           <EmailRecipients
             completedCall={call.completedCall}
