@@ -1745,7 +1745,7 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   /* Reuse the hero phone's frame treatment */
   .crm-device-frame {
     width: min(90vw, 356px);
-    padding: 9px;
+    padding: 9px 9px 18px;
     overflow: hidden;
     border: 1px solid #6e6962;
     border-radius: 50px;
@@ -1829,7 +1829,7 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 }
 
 @media (max-width: 400px) {
-  .crm-device-frame { width: min(92vw, 330px); border-radius: 44px; }
+  .crm-device-frame { width: min(92vw, 330px); padding: 8px 8px 16px; border-radius: 44px; }
   .crm-section .crm-shell { height: 560px; border-radius: 35px; }
 }
 
