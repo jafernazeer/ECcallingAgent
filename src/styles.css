@@ -1719,6 +1719,27 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   overscroll-behavior: contain;
 }
 
+/* Leads tab is a two-column grid; cap each column and scroll it internally so
+   the tab matches the height of the single-column tabs. */
+.crm-section .crm-body .crm-table-card {
+  align-self: start;
+  max-height: 540px;
+  display: flex;
+  flex-direction: column;
+}
+.crm-section .crm-body .crm-table-card .crm-table,
+.crm-section .crm-body .crm-table-card .call-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.crm-section .crm-body .crm-detail {
+  align-self: start;
+  max-height: 540px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .crm-section .crm-body::-webkit-scrollbar,
 .crm-section .call-list::-webkit-scrollbar { width: 6px; }
 .crm-section .crm-body::-webkit-scrollbar-thumb,
@@ -1761,7 +1782,7 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     height: 600px;
     display: flex;
     flex-direction: column;
-    border-radius: 40px;
+    border-radius: 36px 36px 42px 42px;   /* bottom follows the frame's inner curve */
     overflow: hidden;
     background: var(--bone);
   }
