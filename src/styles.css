@@ -1356,8 +1356,8 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     bottom: 0;
     z-index: 5;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 2px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
     padding: 8px 4px max(8px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     background: #fff;
@@ -1744,10 +1744,11 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 
   /* Reuse the hero phone's frame treatment */
   .crm-device-frame {
-    width: min(92vw, 370px);
-    padding: 8px;
+    width: min(90vw, 356px);
+    padding: 9px;
+    overflow: hidden;
     border: 1px solid #6e6962;
-    border-radius: 52px;
+    border-radius: 50px;
     background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #5c5853 100%);
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.15),
@@ -1757,10 +1758,10 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 
   /* Fixed-height handset: header pinned, one scroll region, tabbar always on. */
   .crm-section .crm-shell {
-    height: 640px;
+    height: 600px;
     display: flex;
     flex-direction: column;
-    border-radius: 44px;
+    border-radius: 40px;
     overflow: hidden;
     background: var(--bone);
   }
@@ -1807,15 +1808,29 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-section .crm-topbar { padding: 16px 16px 10px; }
   .crm-section .crm-topbar h2 { font-size: 24px; }
   .crm-section .crm-toolbar { padding: 10px 14px; }
-  .crm-section .crm-body { padding: 0 12px 14px; }
+  .crm-section .crm-body { padding: 0 14px 14px; gap: 11px; }
+  .crm-section .crm-topbar { padding: 15px 16px 8px; }
+  .crm-section .crm-topbar h2 { font-size: 22px; }
+  .crm-section .crm-toolbar { padding: 8px 14px 10px; }
+  .crm-section .crm-search { padding: 8px 12px; border-radius: 12px; font-size: 13px; }
+  .crm-section .crm-search input { font-size: 13px; }
+  .crm-section .crm-filter { padding: 7px 13px; font-size: 12px; }
+  .crm-section .crm-table-card,
+  .crm-section .lead-panel { border-radius: 14px; box-shadow: 0 1px 3px rgba(23,21,19,0.05); }
+  .crm-section .crm-table-head { padding: 12px 14px; }
+  .crm-section .crm-table-head strong { font-size: 13.5px; }
+  .crm-section .crm-table-head span { font-size: 11px; }
+  .crm-section .crm-detail { padding: 15px; }
+  .crm-section .crm-detail h3 { font-size: 20px; }
+  .crm-section .lead-field { padding: 11px 14px; }
 
   .crm-section .kpi strong { font-size: 22px; }
   .crm-section .spark { height: 96px; }
 }
 
 @media (max-width: 400px) {
-  .crm-device-frame { width: min(94vw, 340px); border-radius: 46px; }
-  .crm-section .crm-shell { height: 580px; border-radius: 38px; }
+  .crm-device-frame { width: min(92vw, 330px); border-radius: 44px; }
+  .crm-section .crm-shell { height: 560px; border-radius: 35px; }
 }
 
 /* ============================================================
