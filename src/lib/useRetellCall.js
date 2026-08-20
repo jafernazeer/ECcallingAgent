@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { CALL_SOURCE, nowIso, persistCallEvent } from "./callHelpers.js";
+import { CALL_SOURCE, isAgentGoodbye, nowIso, persistCallEvent } from "./callHelpers.js";
 import { STORAGE_KEYS, readStored, removeStored, writeStored } from "./storage.js";
 
 export const CALL_STATE = {
@@ -101,6 +101,7 @@ export function useRetellCall() {
   const [completedCall, setCompletedCall] = useState(null);
 
   const clientRef = useRef(null);
+  const goodbyeTimerRef = useRef(null);
   const audioRef = useRef(null);
   const callIdRef = useRef("");
   const startedAtRef = useRef("");
@@ -119,6 +120,7 @@ export function useRetellCall() {
   }, [status]);
 
   useEffect(() => () => {
+    if (goodbyeTimerRef.current) window.clearTimeout(goodbyeTimerRef.current);
     try { clientRef.current?.stopCall?.(); } catch { /* already closed */ }
   }, []);
 
@@ -220,9 +222,28 @@ export function useRetellCall() {
         const next = toDisplayTranscript(update.transcript);
         transcriptRef.current = next;
         setTranscript(next);
+
+        // The agent signs off but Retell keeps the session open, leaving the
+        // caller to press End Call. Hang up ourselves once its closing line
+        // lands, allowing a short beat for the audio to finish playing.
+        const last = next[next.length - 1];
+        if (last?.speaker === "agent" && isAgentGoodbye(last.text) && !goodbyeTimerRef.current) {
+          goodbyeTimerRef.current = window.setTimeout(() => {
+            goodbyeTimerRef.current = null;
+            applyState(CALL_STATE.ending);
+            try { client.stopCall(); } catch { /* already closed */ }
+            finishCall("Call ended after the agent signed off.");
+          }, 2600);
+        }
       });
 
-      client.on("call_ended", () => finishCall("EthikCorp Agent call ended."));
+      client.on("call_ended", () => {
+        if (goodbyeTimerRef.current) {
+          window.clearTimeout(goodbyeTimerRef.current);
+          goodbyeTimerRef.current = null;
+        }
+        finishCall("EthikCorp Agent call ended.");
+      });
 
       client.on("error", (error) => {
         const message = friendlyError(error);
@@ -241,6 +262,10 @@ export function useRetellCall() {
   }, [status, lead]);
 
   const endCall = useCallback(() => {
+    if (goodbyeTimerRef.current) {
+      window.clearTimeout(goodbyeTimerRef.current);
+      goodbyeTimerRef.current = null;
+    }
     applyState(CALL_STATE.ending);
     try { clientRef.current?.stopCall?.(); } catch { /* already closed */ }
     finishCall("Call ended from the agent test portal.");
