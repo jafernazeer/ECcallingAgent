@@ -289,7 +289,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 8px;
   border: 1px solid #6e6962;
   border-radius: 52px;
-  background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #5c5853 100%);
+  background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #1d1b19 100%);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.15),
     inset 0 -1px 0 rgba(0, 0, 0, 0.9);
@@ -1770,7 +1770,7 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     overflow: hidden;
     border: 1px solid #6e6962;
     border-radius: 50px;
-    background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #5c5853 100%);
+    background: linear-gradient(145deg, #858078 0%, #373532 13%, #141313 46%, #1d1b19 100%);
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.15),
       inset 0 -1px 0 rgba(0, 0, 0, 0.9),
@@ -1782,10 +1782,10 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     height: 600px;
     display: flex;
     flex-direction: column;
-    border-radius: 36px 36px 42px 42px;   /* bottom follows the frame's inner curve */
+    border-radius: 36px 36px 52px 52px;   /* bottom curves inside the frame's inner curve */
     overflow: hidden;
     isolation: isolate;                   /* keep children inside the clip */
-    background: var(--bone);
+    background: #ffffff;
   }
 
   .crm-section .crm-main {
@@ -1829,8 +1829,8 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     /* Round its own bottom corners as a second line of defence. */
-    border-bottom-left-radius: 42px;
-    border-bottom-right-radius: 42px;
+    border-bottom-left-radius: 52px;
+    border-bottom-right-radius: 52px;
   }
 
   .crm-section .crm-topbar { padding: 16px 16px 10px; }
@@ -1858,8 +1858,8 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 
 @media (max-width: 400px) {
   .crm-device-frame { width: min(92vw, 330px); padding: 8px 8px 16px; border-radius: 44px; }
-  .crm-section .crm-shell { height: 560px; border-radius: 30px 30px 35px 35px; }
-  .crm-section .crm-tabbar { border-bottom-left-radius: 35px; border-bottom-right-radius: 35px; }
+  .crm-section .crm-shell { height: 560px; border-radius: 30px 30px 46px 46px; }
+  .crm-section .crm-tabbar { border-bottom-left-radius: 46px; border-bottom-right-radius: 46px; }
 }
 
 /* ============================================================
