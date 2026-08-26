@@ -64,7 +64,26 @@ edge.
 and any axis labels. KPI value at 30px/600 with tight tracking, its label at
 11px uppercase — the number is the headline, the label is support.
 
-### 7. Motion
+### 7. Constant tab height
+Every tab must occupy the same box. If tabs size to their own content under a
+`max-height`, switching to a tab that stacks its panes vertically (a leads
+table above a record, rather than beside it) grows the shell and shifts the
+page beneath it.
+
+Give the shell a fixed height, make the main column a flex column, and let the
+content area be `flex: 1; min-height: 0; overflow-y: auto` so each tab scrolls
+inside a constant frame. Stretch the panes to the region rather than letting
+each size to its own content, and cap any stacked table so the record beneath
+stays reachable.
+
+### 8. Scope the back control to phones
+If the mobile drill-down added a Back control, make sure its styles are not
+defined *only* inside the phone media query. A `<button>` with no global rule
+falls through to default browser rendering and appears, unstyled, next to the
+record title on desktop. Declare `display: none` globally and let the phone
+block opt back in.
+
+### 9. Motion
 Transitions 150–200ms on hover/selection only. Add a
 `@media (prefers-reduced-motion: reduce)` block that disables them.
 
@@ -93,6 +112,8 @@ At 1440px and 1280px, measure and report:
 6. `document.documentElement.scrollWidth <= clientWidth` — no horizontal
    overflow.
 7. Phone (375px) and tablet (768px) layouts are unchanged from before the edit.
+8. Shell height is identical across every tab - click each one and measure.
+9. The Back control is not visible at any width above 600px.
 
 Report the measured numbers. If the preview cannot screenshot or scroll,
 verify via computed styles and say so explicitly rather than claiming a visual
