@@ -83,6 +83,14 @@ falls through to default browser rendering and appears, unstyled, next to the
 record title on desktop. Declare `display: none` globally and let the phone
 block opt back in.
 
+**Watch the source order.** These rules carry equal specificity, so whichever
+appears later in the stylesheet wins. A global `display: none` appended to the
+end of the file lands *after* the phone block and hides the control on phones
+too, breaking the only way out of the drill-down. Either place the global hide
+before the phone block, or re-assert `display: inline-flex` for phones after
+it. Verify on a phone viewport that the control is actually visible once
+drilled in - do not assume the desktop fix left mobile intact.
+
 ### 9. Motion
 Transitions 150–200ms on hover/selection only. Add a
 `@media (prefers-reduced-motion: reduce)` block that disables them.

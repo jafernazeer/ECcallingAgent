@@ -2486,3 +2486,10 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-body-leads { grid-auto-rows: min-content; }
   .crm-body-leads > .crm-table-card { max-height: 340px; }
 }
+
+/* The global hide above is declared later in the file than the phone block
+   that styles this control, so it also won by source order there. Re-enable
+   it for phones AFTER the hide - the drill-down has no other way back. */
+@media (max-width: 600px) {
+  .crm-back { display: inline-flex; }
+}
