@@ -472,6 +472,25 @@ async function listRetellCalls({ force = false } = {}) {
   return calls;
 }
 
+/**
+ * Resolve who the call was with, using the same sources as the lead record so
+ * the Calls tab and the Leads tab never disagree about a caller's name.
+ * Falls back to the call type only when no name was captured at all.
+ */
+function callerIdentityFromCall(call) {
+  const analysis = call.call_analysis || {};
+  const captured = liveLeads.get(call.call_id);
+  const fields = mergeFields(
+    captured?.fields,
+    fieldsFromAnalysis(analysis.custom_analysis_data),
+    fieldsFromSummary(analysis.call_summary || ""),
+  );
+  return {
+    callerName: fields.customer_name || "",
+    callerCompany: fields.company_name || "",
+  };
+}
+
 function summariseCall(call) {
   const analysis = call.call_analysis || {};
   const start = Number(call.start_timestamp || 0);
@@ -481,6 +500,7 @@ function summariseCall(call) {
     startedAt: start ? new Date(start).toISOString() : "",
     durationSeconds: start && end ? Math.round((end - start) / 1000) : 0,
     direction: call.direction || call.call_type || "web_call",
+    ...callerIdentityFromCall(call),
     disconnectionReason: call.disconnection_reason || "",
     successful: analysis.call_successful,
     sentiment: analysis.user_sentiment || "",

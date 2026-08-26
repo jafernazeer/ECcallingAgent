@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useRetellData, formatClock, formatWhen, callerNameFromSummary } from "../lib/useRetellData.js";
+import { useRetellData, formatClock, formatWhen } from "../lib/useRetellData.js";
 import {
   CalendarDays,
   Grid2X2,
@@ -187,7 +187,7 @@ function CallsTab({ calls, selectedCall, openCall, loading }) {
   if (!calls.length) return <div className="crm-placeholder"><p>No calls recorded yet. Start a call to see it here.</p></div>;
 
   return (
-    <div className="crm-body">
+    <div className="crm-body crm-split">
       <div className="crm-table-card">
         <div className="crm-table-head">
           <strong>Past Call Records</strong>
@@ -196,7 +196,9 @@ function CallsTab({ calls, selectedCall, openCall, loading }) {
         <div className="call-list">
           {calls.map((call) => {
             const active = selectedCall?.callId === call.callId;
-            const name = callerNameFromSummary(call.summary);
+            // Resolved server-side from the capture tools, post-call analysis
+            // and summary, so it matches the name shown on the lead record.
+            const name = call.callerName || "Unknown caller";
             return (
               <React.Fragment key={call.callId}>
                 <button
@@ -205,8 +207,8 @@ function CallsTab({ calls, selectedCall, openCall, loading }) {
                   onClick={() => openCall(call.callId)}
                 >
                   <span className="call-row-main">
-                    <strong>{name || call.direction.replace(/_/g, " ")}</strong>
-                    <small>{formatWhen(call.startedAt)}</small>
+                    <strong className={call.callerName ? "" : "is-unnamed"}>{name}</strong>
+                    <small>{call.callerCompany ? `${call.callerCompany} · ${formatWhen(call.startedAt)}` : formatWhen(call.startedAt)}</small>
                   </span>
                   <span className="call-row-meta">
                     <span className="call-dur">{formatClock(call.durationSeconds)}</span>
@@ -241,7 +243,7 @@ function TranscriptPanel({ call }) {
   return (
     <div className="transcript-panel">
       <div className="crm-detail-top">
-        <span className="crm-id">{call.callId?.slice(0, 18)}…</span>
+        <span className="crm-id">{call.callerName || "Unknown caller"}</span>
         <span className="call-dur">{formatClock(call.durationSeconds)}</span>
       </div>
       {call.summary && (
@@ -460,7 +462,7 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                 <span className="crm-count-pill">{leads.length} lead{leads.length === 1 ? "" : "s"}</span>
               </div>
 
-              <div className="crm-body crm-body-single crm-body-leads">
+              <div className="crm-body crm-body-single crm-body-leads crm-split">
                 <div className="crm-table-card">
                   <div className="crm-table-head">
                     <strong>Captured Leads ({leads.length})</strong>
