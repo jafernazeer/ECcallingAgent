@@ -2123,3 +2123,119 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-section .crm-topbar h2 { font-size: 21px; }
   .crm-section .kpi strong { font-size: 18px; }
 }
+
+/* ============================================================
+   Mobile dashboard — full-bleed app surface
+   The decorative handset frame cost ~85px of width and boxed the
+   dashboard into 560px of height. On a real phone the dashboard IS
+   the app, so below 600px it goes edge to edge and the record opens
+   as its own screen rather than a 150px column.
+   ============================================================ */
+
+@media (max-width: 600px) {
+  .crm-section .section-card { padding: 22px 0 26px; border-radius: 20px; }
+  .crm-section .section-head { padding: 0 16px; margin-bottom: 20px; }
+  .crm-device { margin-top: 18px; }
+
+  /* Drop the phone chrome entirely. */
+  .crm-device-frame {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 20px;
+    background: none;
+    box-shadow: none;
+  }
+
+  .crm-section .crm-shell {
+    height: min(78vh, 720px);
+    border-radius: 20px;
+    box-shadow: 0 18px 40px -24px rgba(23, 21, 19, 0.45);
+  }
+  .crm-section .crm-tabbar { border-radius: 0 0 20px 20px; }
+
+  /* --- Type: 16px body so iOS never auto-zooms, clearer hierarchy --- */
+  .crm-section .crm-topbar h2 { font-size: 19px; letter-spacing: -0.01em; }
+  .crm-section .crm-topbar p { font-size: 12px; }
+  .crm-split .crm-detail h3 { font-size: 21px; }
+
+  /* --- List: cards, not table rows --- */
+  .crm-split { grid-template-columns: minmax(0, 1fr); padding: 0 12px 12px; gap: 10px; }
+  .crm-split > .crm-table-card,
+  .crm-split > .crm-detail { max-height: none; overflow: visible; }
+
+  .crm-split .call-row,
+  .crm-split button.crm-row {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 56px;
+    padding: 13px 15px;
+    gap: 3px;
+  }
+  .crm-split .call-row-meta { display: flex; }
+  .crm-split .crm-table-head span { display: inline; }
+
+  /* The name is the anchor of each row; everything else is support. */
+  .crm-split .crm-col-name,
+  .crm-split .call-row-main strong { font-size: 15.5px; font-weight: 600; }
+  .crm-split .call-row-main small { font-size: 12.5px; }
+
+  /* Secondary lead fields read as one quiet support line under the name. */
+  .crm-split .crm-col-company,
+  .crm-split .crm-col-phone { display: block; font-size: 12.5px; color: var(--ash); }
+  .crm-split .crm-col-location,
+  .crm-split .crm-col-email,
+  .crm-split .crm-col-requirement { display: none; }
+  .crm-split .crm-row.crm-head { display: none; }
+
+  /* --- Drill-down: one screen at a time --- */
+  .crm-split .call-detail-panel,
+  .crm-body-leads .crm-detail { display: none; }
+  .crm-split.is-detail-open > .crm-table-card { display: none; }
+  .crm-split.is-detail-open .call-detail-panel,
+  .crm-split.is-detail-open .crm-detail {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 15px 20px;
+  }
+  .crm-split .call-inline-transcript { display: none; }
+
+  /* Back control: full 44px target, reads as the screen's leading action. */
+  .crm-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    margin: -6px 0 6px -6px;
+    padding: 0 8px 0 4px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #0f7a4f;
+    cursor: pointer;
+  }
+  .crm-back:active { opacity: 0.6; }
+
+  /* Detail reads as a document: one column, generous line height. */
+  .crm-split .crm-detail-fields { columns: 1; }
+  .crm-split .crm-detail-fields > div {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 9px 0;
+  }
+  .crm-split .crm-detail-fields dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .crm-split .crm-detail-fields dd { font-size: 15.5px; text-align: left; }
+  .crm-split .crm-notes p { font-size: 14.5px; line-height: 1.6; }
+  .crm-split .crm-transcript { font-size: 14.5px; }
+  .crm-split .crm-turn p { line-height: 1.55; }
+}
+
+/* Tablets keep both panes — there the split genuinely helps. */
+@media (min-width: 601px) and (max-width: 760px) {
+  .crm-split { grid-template-columns: 38% minmax(0, 1fr); }
+  .crm-split.is-detail-open > .crm-table-card { display: block; }
+  .crm-back { display: none; }
+}

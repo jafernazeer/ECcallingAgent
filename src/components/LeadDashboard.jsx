@@ -8,6 +8,7 @@ import {
   PhoneCall,
   Search,
   UsersRound,
+  ChevronLeft,
 } from "lucide-react";
 
 const NAV = [
@@ -53,7 +54,7 @@ function LeadRow({ lead, selected, onSelect }) {
   );
 }
 
-function LeadDetail({ lead, callSummary }) {
+function LeadDetail({ lead, callSummary, onBack }) {
   if (!lead) {
     return (
       <aside className="crm-detail is-empty">
@@ -69,6 +70,7 @@ function LeadDetail({ lead, callSummary }) {
 
   return (
     <aside className="crm-detail">
+      <DetailBackBar label="All leads" onBack={onBack} />
       <div className="crm-detail-top">
         <span className="crm-id">{lead.call_id ? `${lead.call_id.slice(0, 14)}…` : "New lead"}</span>
         <span className={`crm-status-chip ${flagged ? "is-review" : "is-clear"}`}>
@@ -182,12 +184,12 @@ function OverviewTab({ analytics, loading }) {
   );
 }
 
-function CallsTab({ calls, selectedCall, openCall, loading }) {
+function CallsTab({ calls, selectedCall, openCall, loading, detailOpen, setDetailOpen }) {
   if (loading && !calls.length) return <div className="crm-placeholder"><p>Loading call history…</p></div>;
   if (!calls.length) return <div className="crm-placeholder"><p>No calls recorded yet. Start a call to see it here.</p></div>;
 
   return (
-    <div className="crm-body crm-split">
+    <div className={`crm-body crm-split ${detailOpen ? "is-detail-open" : ""}`}>
       <div className="crm-table-card">
         <div className="crm-table-head">
           <strong>Past Call Records</strong>
@@ -204,7 +206,7 @@ function CallsTab({ calls, selectedCall, openCall, loading }) {
                 <button
                   type="button"
                   className={`call-row ${active ? "is-selected" : ""}`}
-                  onClick={() => openCall(call.callId)}
+                  onClick={() => { openCall(call.callId); setDetailOpen(true); }}
                 >
                   <span className="call-row-main">
                     <strong className={call.callerName ? "" : "is-unnamed"}>{name}</strong>
@@ -229,9 +231,19 @@ function CallsTab({ calls, selectedCall, openCall, loading }) {
 
       {/* Desktop: transcript sits to the right */}
       <aside className="crm-detail call-detail-panel">
+        <DetailBackBar label="All calls" onBack={() => setDetailOpen(false)} />
         {selectedCall ? <TranscriptPanel call={selectedCall} /> : <p className="crm-detail-empty-text">Select a call to read its transcript.</p>}
       </aside>
     </div>
+  );
+}
+
+function DetailBackBar({ label, onBack }) {
+  return (
+    <button type="button" className="crm-back" onClick={onBack}>
+      <ChevronLeft size={18} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -356,6 +368,10 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completedCall?.sessionId]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // Phones drill down: the list fills the screen until a record is opened,
+  // then the record takes over and Back returns. Wider screens ignore this
+  // and keep both panes visible.
+  const [detailOpen, setDetailOpen] = useState(false);
   // Live leads from Retell, with the in-call capture pinned first.
   const leads = useMemo(() => (lead ? [lead, ...retell.leads] : retell.leads), [lead, retell.leads]);
   const activeLead = leads[selectedIndex] || null;
@@ -395,7 +411,7 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                   <button
                     type="button"
                     className={activeNav === item.id ? "crm-nav-item is-active" : "crm-nav-item"}
-                    onClick={() => setActiveNav(item.id)}
+                    onClick={() => { setActiveNav(item.id); setDetailOpen(false); }}
                   >
                     <Icon size={17} aria-hidden="true" />
                     {item.label}
@@ -440,6 +456,8 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
               selectedCall={retell.selectedCall}
               openCall={retell.openCall}
               loading={retell.loading}
+              detailOpen={detailOpen}
+              setDetailOpen={setDetailOpen}
             />
           ) : activeNav === "bookings" ? (
             <BookingsTab />
@@ -462,7 +480,7 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                 <span className="crm-count-pill">{leads.length} lead{leads.length === 1 ? "" : "s"}</span>
               </div>
 
-              <div className="crm-body crm-body-single crm-body-leads crm-split">
+              <div className={`crm-body crm-body-single crm-body-leads crm-split ${detailOpen ? "is-detail-open" : ""}`}>
                 <div className="crm-table-card">
                   <div className="crm-table-head">
                     <strong>Captured Leads ({leads.length})</strong>
@@ -485,14 +503,14 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                           key={item.call_id || index}
                           lead={item}
                           selected={selectedIndex === index}
-                          onSelect={() => setSelectedIndex(index)}
+                          onSelect={() => { setSelectedIndex(index); setDetailOpen(true); }}
                         />
                       ))}
                     </div>
                   )}
                 </div>
 
-                <LeadDetail lead={activeLead} callSummary={activeLead?.summary || latestSummary} />
+                <LeadDetail lead={activeLead} callSummary={activeLead?.summary || latestSummary} onBack={() => setDetailOpen(false)} />
               </div>
             </>
           )}
