@@ -2239,3 +2239,185 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-split.is-detail-open > .crm-table-card { display: block; }
   .crm-back { display: none; }
 }
+
+/* ============================================================
+   Desktop dashboard — minimal data surface
+   Scoped above the tablet breakpoint so the phone drill-down and
+   tablet split are untouched. Flattens the decorative chrome, puts
+   the data on a calmer 8px rhythm, and gives transcripts and lead
+   records a readable measure.
+   ============================================================ */
+
+@media (min-width: 1001px) {
+  /* --- Shell: one quiet surface, not a stack of framed boxes --- */
+  .crm-section .section-card { padding: 40px 36px 44px; }
+
+  .crm-device-frame {
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    background: none;
+    box-shadow: 0 30px 64px -44px rgba(0, 0, 0, 0.7);
+  }
+
+  .crm-shell {
+    grid-template-columns: 224px minmax(0, 1fr);
+    min-height: 680px;
+    border-radius: 18px;
+    background: #fbfbfd;
+    box-shadow: none;
+  }
+  .crm-section .crm-shell { border-radius: 18px; }
+
+  /* --- Sidebar: quieter chrome, unmistakable current location --- */
+  .crm-sidebar { gap: 22px; padding: 20px 12px; background: #ffffff; }
+
+  .crm-nav-item {
+    position: relative;
+    gap: 11px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: background-color 160ms var(--ease), color 160ms var(--ease);
+  }
+  .crm-nav-item:hover { background: rgba(23, 21, 19, 0.04); }
+  .crm-nav-item.is-active { background: rgba(56, 201, 134, 0.1); font-weight: 600; }
+  /* An indicator bar, so the active item does not rely on colour alone. */
+  .crm-nav-item.is-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 17px;
+    border-radius: 0 3px 3px 0;
+    background: #0f7a4f;
+    transform: translateY(-50%);
+  }
+
+  /* --- Topbar: room to breathe, one clear title --- */
+  .crm-topbar { padding: 20px 24px 16px; }
+  .crm-topbar h2 { font-size: 21px; font-weight: 600; letter-spacing: -0.015em; }
+  .crm-topbar p { font-size: 12.5px; margin-top: 3px; }
+
+  /* --- Content rhythm --- */
+  .crm-body { padding: 0 24px 24px; gap: 20px; }
+
+  /* The record is what you came to read, so it gets the remaining width;
+     the list only needs enough for a name and a timestamp. */
+  .crm-split { grid-template-columns: minmax(268px, 330px) minmax(0, 1fr); }
+  .crm-toolbar { padding: 0 24px 16px; }
+  .crm-section .crm-body,
+  .crm-section .crm-placeholder { max-height: 620px; }
+  .crm-section .crm-body .crm-table-card { max-height: 600px; }
+
+  .crm-table-card,
+  .crm-detail {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(23, 21, 19, 0.04);
+  }
+  .crm-table-head { padding: 15px 18px; }
+  .crm-table-head strong { font-size: 14px; font-weight: 600; }
+
+  /* --- Rows: taller, calmer, with a real selected state --- */
+  .crm-row.crm-head {
+    padding: 10px 18px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: #fcfcfd;
+  }
+  button.crm-row,
+  .call-row {
+    position: relative;
+    min-height: 52px;
+    padding: 12px 18px;
+  }
+  button.crm-row.is-selected::before,
+  .call-row.is-selected::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #0f7a4f;
+  }
+  .crm-cell { font-size: 13px; }
+  .crm-col-name { font-size: 13.5px; }
+
+  /* Keyboard users must see where they are (rows are real buttons). */
+  button.crm-row:focus-visible,
+  .call-row:focus-visible,
+  .crm-nav-item:focus-visible,
+  .crm-back:focus-visible {
+    outline: 2px solid #0f7a4f;
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+
+  /* --- Records read as documents, not as forms --- */
+  .crm-detail { padding: 20px 22px 24px; }
+  .crm-detail h3 { font-size: 22px; letter-spacing: -0.015em; }
+  .crm-detail-fields > div { padding: 10px 0; }
+  .crm-detail-fields dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ash);
+  }
+  .crm-detail-fields dd { font-size: 14px; }
+
+  .crm-notes { margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: #f6f7fb; }
+  .crm-notes span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ash);
+  }
+  .crm-notes p { font-size: 14px; line-height: 1.65; }
+
+  /* --- Transcript: capped measure so long turns stay readable --- */
+  .crm-transcript { display: flex; flex-direction: column; gap: 14px; }
+  .crm-turn p { max-width: 68ch; font-size: 14px; line-height: 1.62; }
+  .crm-turn-speaker {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* --- Overview: the number is the headline --- */
+  .kpi-row { gap: 16px; }
+  .kpi { padding: 18px 20px; border-radius: 14px; }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .kpi strong {
+    display: block;
+    margin: 8px 0 4px;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    /* Tabular figures stop the KPI row twitching as numbers refresh. */
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi small { font-size: 12px; }
+
+  .funnel-value,
+  .call-dur,
+  .spark small { font-variant-numeric: tabular-nums; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-nav-item,
+  button.crm-row,
+  .call-row { transition: none; }
+}
