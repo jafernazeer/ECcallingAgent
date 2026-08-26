@@ -226,8 +226,19 @@ export function useRetellCall() {
         // The agent signs off but Retell keeps the session open, leaving the
         // caller to press End Call. Hang up ourselves once its closing line
         // lands, allowing a short beat for the audio to finish playing.
+        // Only treat a sign-off as real once the caller has actually spoken and
+        // the exchange has moved past the opening turns — otherwise the agent's
+        // greeting courtesies end the call seconds after it connects.
         const last = next[next.length - 1];
-        if (last?.speaker === "agent" && isAgentGoodbye(last.text) && !goodbyeTimerRef.current) {
+        const callerSpoke = next.some((entry) => entry.speaker === "user");
+        const pastOpening = next.length >= 4 && elapsedRef.current >= 15;
+        if (
+          last?.speaker === "agent"
+          && callerSpoke
+          && pastOpening
+          && isAgentGoodbye(last.text)
+          && !goodbyeTimerRef.current
+        ) {
           goodbyeTimerRef.current = window.setTimeout(() => {
             goodbyeTimerRef.current = null;
             applyState(CALL_STATE.ending);

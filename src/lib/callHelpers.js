@@ -40,7 +40,10 @@ export function nowIso() {
 }
 
 const CUSTOMER_GOODBYE_PATTERN = /\b(bye|goodbye|that'?s all|that is all|no thanks|no thank you|thanks bye|thank you bye|ok bye|okay bye|see you)\b/i;
-const AGENT_GOODBYE_PATTERN = /\b(bye|goodbye|thank you for contacting|have a great day|have a good day|take care)\b/i;
+// Sign-off phrases ONLY. Deliberately excludes greeting-style courtesies such
+// as "thank you for contacting …", which the agent opens the call with — that
+// false positive used to hang the call up ~5s after it connected.
+const AGENT_GOODBYE_PATTERN = /\b(goodbye|bye for now|have a great day|have a good day|take care|thank you for your time|thanks for your time|someone will (get back|reach out)|we'?ll be in touch)\b/i;
 
 export function isFinalTranscript(event) {
   return Boolean(event?.text) && event.final !== false && !event.partial;
