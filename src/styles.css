@@ -1231,7 +1231,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .crm-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1.5fr 1.2fr 0.95fr 0.9fr 0.9fr;
+  /* Name · Company · Location · Contact Number · Email · Requirement */
+  grid-template-columns: 1.05fr 1fr 0.8fr 0.95fr 1.25fr 1.4fr;
   align-items: center;
   gap: 10px;
   padding: 13px 17px;
@@ -1256,6 +1257,59 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 .crm-profile strong { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .crm-profile small { display: block; margin-top: 2px; color: var(--ash); font-size: 11.5px; }
 .crm-cell { min-width: 0; font-size: 12.5px; color: var(--taupe); overflow-wrap: anywhere; }
+
+/* Leads table cells */
+.crm-col-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+/* Tabular figures keep the number column from jittering between rows. */
+.crm-col-phone,
+.crm-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.crm-col-email { overflow-wrap: anywhere; }
+.crm-col-requirement {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--taupe);
+}
+/* Missing values stay legible but recede, so real data reads first. */
+.crm-cell.is-empty { color: var(--ash); opacity: 0.65; }
+
+/* Leads view: the table owns the full shell width so all six columns stay
+   readable; the selected record stacks beneath it rather than beside it. */
+.crm-body-leads .crm-detail {
+  border-left: 0;
+  border-top: 1px solid var(--line);
+}
+.crm-body-leads .crm-detail-fields { columns: 2; column-gap: 32px; }
+.crm-body-leads .crm-detail-fields > div { break-inside: avoid; }
+
+@media (max-width: 760px) {
+  .crm-body-leads .crm-detail-fields { columns: 1; }
+}
+
+.crm-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(56, 201, 134, 0.1);
+  color: #0f7a4f;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.crm-status-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.crm-status-chip.is-clear { background: rgba(56, 201, 134, 0.12); color: #0f7a4f; }
+/* Amber, not red: a flagged lead needs a look, it is not an error. */
+.crm-status-chip.is-review { background: rgba(214, 158, 46, 0.14); color: #8a5d00; }
 
 .chip-quality {
   display: inline-block;
@@ -1325,8 +1379,9 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 
 @media (max-width: 1000px) {
   .crm-body { grid-template-columns: minmax(0, 1fr); }
-  .crm-row { grid-template-columns: 1.4fr 1.1fr 0.9fr; }
-  .crm-lang, .crm-captured { display: none; }
+  /* Requirement is the widest and the least scannable — it goes first. */
+  .crm-row { grid-template-columns: 1.1fr 1fr 0.8fr 1fr 1.2fr; }
+  .crm-col-requirement { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -1381,9 +1436,17 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-tab.is-active svg { color: #0f7a4f; }
 }
 
+@media (max-width: 760px) {
+  .crm-row { grid-template-columns: 1.1fr 0.95fr 1fr; }
+  .crm-col-location, .crm-col-email { display: none; }
+}
+
 @media (max-width: 430px) {
-  .crm-row { grid-template-columns: 1.5fr 1fr; }
-  .crm-quality { display: none; }
+  /* Phone stays: on a phone-sized screen it is the actionable field. */
+  .crm-row { grid-template-columns: 1.1fr 1fr; }
+  /* Rows are tap targets - hold the 44px minimum once columns are dropped. */
+  button.crm-row { min-height: 44px; }
+  .crm-col-company, .crm-col-location, .crm-col-email { display: none; }
   .crm-detail-fields > div { flex-direction: column; align-items: flex-start; gap: 2px; }
   .crm-detail-fields dd { text-align: left; }
 }

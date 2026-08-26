@@ -496,27 +496,41 @@ function summariseCall(call) {
  * optional "(low confidence)" marker per field. Tool-call values remain the
  * source of truth — this only backfills calls that predate the capture tools.
  */
-function leadFromSummary(summary, callId) {
-  const text = String(summary || "");
-  if (!text.trim()) return null;
+const EMPTY_VALUE = /^(none|n\/a|na|not provided|unknown|not captured|nil|no\b.*)$/i;
+// "Unclear, needs follow-up" and friends are the model reporting a miss, not a
+// requirement — match on the prefix so trailing commentary doesn't smuggle them in.
+const NON_ANSWER_PREFIX = /^(unclear|not (provided|captured|specified|mentioned|discussed)|none|n\/a|unknown|to be (confirmed|determined)|tbd)\b/i;
 
-  const grab = (label) => {
+/** Normalise one extracted value; returns "" when the model said "not provided". */
+function cleanValue(raw, maxLength) {
+  let value = String(raw ?? "").trim().replace(/\.$/, "").replace(/^\[|\]$/g, "").trim();
+  if (!value || EMPTY_VALUE.test(value) || NON_ANSWER_PREFIX.test(value)) return "";
+  if (value.length > maxLength) return "";
+  return value;
+}
+
+/**
+ * Pull labelled fields out of Retell's post-call summary line, which reads
+ * "Inbound lead: Name: Dave. Company: Individual. Location: Dubai. ..."
+ */
+function fieldsFromSummary(summary) {
+  const text = String(summary || "");
+  if (!text.trim()) return {};
+
+  const grab = (label, maxLength = 60) => {
     const match = new RegExp(`${label}\\s*:\\s*([^;\\n]+)`, "i").exec(text);
     if (!match) return { value: "", confidence: "" };
-    let raw = match[1].trim().replace(/\.$/, "");
+    let raw = match[1].trim();
     let confidence = "";
     const conf = /\((high|low)\s*confidence\)/i.exec(raw);
     if (conf) {
       confidence = conf[1].toLowerCase();
       raw = raw.replace(conf[0], "").trim();
     }
-    // Some summaries omit the ";" separator and run into a sentence, e.g.
-    // "Jafar. No company or email provided" — cut at the sentence boundary.
+    // Summaries often omit the ";" separator and run into the next sentence,
+    // e.g. "Dave. Company: Individual" — cut at the sentence boundary.
     raw = raw.split(/\.\s+(?=[A-Z])/)[0].trim();
-    raw = raw.replace(/^\[|\]$/g, "").trim();
-    if (/^(none|n\/a|not provided|unknown|not captured|no\b.*)$/i.test(raw)) return { value: "", confidence };
-    if (raw.length > 60) return { value: "", confidence };
-    return { value: raw, confidence };
+    return { value: cleanValue(raw, maxLength), confidence };
   };
 
   const name = grab("Name");
@@ -524,21 +538,125 @@ function leadFromSummary(summary, callId) {
   const location = grab("Location");
   const phone = grab("Contact Number");
   const email = grab("Email");
-  const requirement = grab("Requirement");
+  // Requirements are free text and routinely longer than the other fields.
+  const requirement = grab("Requirement", 400);
 
-  const lead = {};
-  if (name.value) lead.customer_name = name.value;
-  if (company.value) lead.company_name = company.value;
-  if (location.value) lead.location = location.value;
-  if (location.confidence) lead.location_confidence = location.confidence;
-  if (phone.value) lead.phone_number = phone.value.replace(/[^\d+]/g, "");
-  if (phone.confidence) lead.phone_confidence = phone.confidence;
-  if (email.value) lead.email = email.value;
-  if (email.confidence) lead.email_confidence = email.confidence;
-  if (requirement.value) lead.requirement_summary = requirement.value;
+  return {
+    customer_name: name.value,
+    company_name: company.value,
+    location: location.value,
+    location_confidence: location.confidence,
+    phone_number: phone.value ? phone.value.replace(/[^\d+]/g, "") : "",
+    phone_confidence: phone.confidence,
+    email: email.value,
+    email_confidence: email.confidence,
+    requirement_summary: requirement.value,
+  };
+}
 
-  if (!Object.keys(lead).length) return null;
-  return { ...lead, call_id: callId, source: "call_summary" };
+/**
+ * Retell's custom post-call analysis returns the same fields already typed and
+ * separated, so it beats parsing prose. Contact Number arrives as a JSON number,
+ * which silently drops any leading zero — the summary string is preferred for
+ * that one field whenever it carries more digits.
+ */
+function fieldsFromAnalysis(custom) {
+  if (!custom || typeof custom !== "object") return {};
+  const phone = custom["Contact Number"];
+  return {
+    customer_name: cleanValue(custom.Name, 60),
+    company_name: cleanValue(custom.Company, 60),
+    location: cleanValue(custom.Location, 60),
+    phone_number: phone ? String(phone).replace(/[^\d+]/g, "") : "",
+    email: cleanValue(custom.Email, 60),
+  };
+}
+
+/**
+ * Last resort for the requirement: read it out of the transcript itself. Takes
+ * the caller's longest substantive turn, which in practice is where they state
+ * what they actually need.
+ */
+function requirementFromTranscript(call) {
+  const turns = Array.isArray(call?.transcript_object)
+    ? call.transcript_object
+    : String(call?.transcript || "")
+        .split("\n")
+        .map((line) => {
+          const match = /^(Agent|User):\s*(.*)$/i.exec(line.trim());
+          return match ? { role: match[1].toLowerCase(), content: match[2] } : null;
+        })
+        .filter(Boolean);
+
+  const candidates = turns
+    .filter((turn) => turn.role !== "agent")
+    .map((turn) => String(turn.content || "").trim())
+    // Skip acknowledgements and one-word answers — they are never requirements.
+    .filter((text) => text.split(/\s+/).length >= 5 && !EMPTY_VALUE.test(text));
+
+  if (!candidates.length) return "";
+  const longest = candidates.sort((a, b) => b.length - a.length)[0];
+  return longest.length > 400 ? `${longest.slice(0, 397)}…` : longest;
+}
+
+/** Keep the first non-empty value across sources, in priority order. */
+function mergeFields(...sources) {
+  const merged = {};
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source || {})) {
+      if (merged[key] === undefined || merged[key] === "" || merged[key] === null) {
+        if (value !== undefined && value !== null && value !== "") merged[key] = value;
+      }
+    }
+  }
+  return merged;
+}
+
+/**
+ * Build one portal lead from a Retell call, combining every source we have:
+ * the live capture tools, the structured post-call analysis, the AI call
+ * summary, and finally the transcript itself.
+ */
+function leadFromCall(call, captured) {
+  const analysis = call?.call_analysis || {};
+  const summary = analysis.call_summary || "";
+
+  const fromAnalysis = fieldsFromAnalysis(analysis.custom_analysis_data);
+  const fromSummary = fieldsFromSummary(summary);
+
+  const fields = mergeFields(captured?.fields, fromAnalysis, fromSummary);
+
+  // JSON numbers drop leading zeros, so "0588499663" reaches us as 588499663.
+  // Whichever source kept more digits for the same number is the correct one.
+  const phoneCandidates = [captured?.fields?.phone_number, fromAnalysis.phone_number, fromSummary.phone_number]
+    .filter(Boolean);
+  if (phoneCandidates.length > 1) {
+    fields.phone_number = phoneCandidates.reduce((best, candidate) => (
+      candidate.replace(/\D/g, "").endsWith(best.replace(/\D/g, "")) && candidate.length > best.length
+        ? candidate
+        : best
+    ));
+  }
+
+  if (!fields.requirement_summary) {
+    const fromTranscript = requirementFromTranscript(call);
+    if (fromTranscript) {
+      fields.requirement_summary = fromTranscript;
+      fields.requirement_source = "transcript";
+    }
+  }
+
+  const hasAnything = ["customer_name", "company_name", "location", "phone_number", "email", "requirement_summary"]
+    .some((key) => fields[key]);
+  if (!hasAnything) return null;
+
+  return {
+    ...fields,
+    call_id: call.call_id,
+    source: captured ? "tool_calls" : "call_analysis",
+    summary,
+    startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)).toISOString() : "",
+  };
 }
 
 /**
@@ -548,19 +666,9 @@ function leadFromSummary(summary, callId) {
 app.get("/api/retell/leads", async (_request, response) => {
   try {
     const calls = await listRetellCalls();
-    const leads = calls.map((call) => {
-      const captured = liveLeads.get(call.call_id);
-      const summary = call.call_analysis?.call_summary || "";
-      const base = captured
-        ? { ...captured.fields, call_id: call.call_id, source: "tool_calls" }
-        : leadFromSummary(summary, call.call_id);
-      if (!base) return null;
-      return {
-        ...base,
-        summary,
-        startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)).toISOString() : "",
-      };
-    }).filter(Boolean);
+    const leads = calls
+      .map((call) => leadFromCall(call, liveLeads.get(call.call_id)))
+      .filter(Boolean);
 
     response.json({ ok: true, leads });
   } catch (error) {

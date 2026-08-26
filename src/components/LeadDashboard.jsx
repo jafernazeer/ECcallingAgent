@@ -18,28 +18,17 @@ const NAV = [
   { id: "email", label: "Email Updates", icon: Mail, mobileLabel: "Email" },
 ];
 
-/** Heuristic quality score from how complete + confident the capture was. */
-function scoreLead(lead) {
-  if (!lead) return null;
-  let score = 30;
-  if (lead.customer_name) score += 12;
-  if (lead.company_name) score += 12;
-  if (lead.location) score += 8;
-  if (lead.phone_number) score += 14;
-  if (lead.email) score += 14;
-  if (lead.requirement_summary) score += 10;
-  if (lead.location_confidence === "low") score -= 8;
-  if (lead.phone_confidence === "low") score -= 8;
-  if (lead.email_confidence === "low") score -= 8;
-  score = Math.max(0, Math.min(100, score));
+/** Column order for the leads table; drives both the header and each row. */
+const LEAD_COLUMNS = [
+  { id: "name", label: "Name", get: (lead) => lead.customer_name },
+  { id: "company", label: "Company", get: (lead) => lead.company_name },
+  { id: "location", label: "Location", get: (lead) => lead.location },
+  { id: "phone", label: "Contact Number", get: (lead) => lead.phone_number },
+  { id: "email", label: "Email", get: (lead) => lead.email },
+  { id: "requirement", label: "Requirement", get: (lead) => lead.requirement_summary },
+];
 
-  const tier = score >= 75 ? "hot" : score >= 50 ? "warm" : "cold";
-  return { score, tier };
-}
-
-const TIER_LABEL = { hot: "Hot", warm: "Warm", cold: "Cold" };
-
-function LeadRow({ lead, quality, selected, onSelect }) {
+function LeadRow({ lead, selected, onSelect }) {
   return (
     <button
       type="button"
@@ -47,21 +36,24 @@ function LeadRow({ lead, quality, selected, onSelect }) {
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
     >
-      <span className="crm-cell crm-profile">
-        <strong>{lead.customer_name || "Unnamed caller"}</strong>
-        <small>{lead.phone_number || "No number captured"}</small>
-      </span>
-      <span className="crm-cell crm-company">{lead.company_name || "—"}</span>
-      <span className="crm-cell crm-quality">
-        {quality && <span className={`chip-quality tier-${quality.tier}`}>{TIER_LABEL[quality.tier]} ({quality.score})</span>}
-      </span>
-      <span className="crm-cell crm-lang">{lead.service_area ? lead.service_area.replace(/_/g, " ") : "English"}</span>
-      <span className="crm-cell crm-captured">{lead.capturedAt || "Just now"}</span>
+      {LEAD_COLUMNS.map((column) => {
+        const value = column.get(lead);
+        return (
+          <span
+            key={column.id}
+            className={`crm-cell crm-col-${column.id} ${value ? "" : "is-empty"}`}
+            /* Long requirements are clamped in CSS; keep the full text reachable. */
+            title={value || undefined}
+          >
+            {value || "—"}
+          </span>
+        );
+      })}
     </button>
   );
 }
 
-function LeadDetail({ lead, quality, callSummary }) {
+function LeadDetail({ lead, callSummary }) {
   if (!lead) {
     return (
       <aside className="crm-detail is-empty">
@@ -78,12 +70,10 @@ function LeadDetail({ lead, quality, callSummary }) {
   return (
     <aside className="crm-detail">
       <div className="crm-detail-top">
-        <span className="crm-id">LD_001</span>
-        {quality && (
-          <span className={`chip-quality tier-${quality.tier}`}>
-            {TIER_LABEL[quality.tier]} Quality · Score {quality.score}/100
-          </span>
-        )}
+        <span className="crm-id">{lead.call_id ? `${lead.call_id.slice(0, 14)}…` : "New lead"}</span>
+        <span className={`crm-status-chip ${flagged ? "is-review" : "is-clear"}`}>
+          {flagged ? "Needs review" : "Captured"}
+        </span>
       </div>
 
       <h3>{lead.customer_name || "Unnamed caller"}</h3>
@@ -92,14 +82,16 @@ function LeadDetail({ lead, quality, callSummary }) {
       </p>
 
       <dl className="crm-detail-fields">
-        <div><dt>Phone Number:</dt><dd>{lead.phone_number || "—"}</dd></div>
-        <div><dt>Email Address:</dt><dd>{lead.email || "—"}</dd></div>
-        <div><dt>Service Interest:</dt><dd>{lead.service_area ? lead.service_area.replace(/_/g, " ") : "—"}</dd></div>
-        <div><dt>Lead Status:</dt><dd className="crm-status">{flagged ? "Needs review" : "Captured"}</dd></div>
+        <div><dt>Name:</dt><dd>{lead.customer_name || "—"}</dd></div>
+        <div><dt>Company:</dt><dd>{lead.company_name || "—"}</dd></div>
+        <div><dt>Location:</dt><dd>{lead.location || "—"}</dd></div>
+        <div><dt>Contact Number:</dt><dd className="crm-num">{lead.phone_number || "—"}</dd></div>
+        <div><dt>Email:</dt><dd>{lead.email || "—"}</dd></div>
+        <div><dt>Requirement:</dt><dd>{lead.requirement_summary || "—"}</dd></div>
       </dl>
 
       <div className="crm-notes">
-        <span>Extracted transcript notes</span>
+        <span>{lead.requirement_source === "transcript" ? "Extracted transcript notes" : "AI call summary"}</span>
         <p>{callSummary || lead.requirement_summary || "Requirement not captured on this call."}</p>
       </div>
     </aside>
@@ -365,7 +357,6 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
   // Live leads from Retell, with the in-call capture pinned first.
   const leads = useMemo(() => (lead ? [lead, ...retell.leads] : retell.leads), [lead, retell.leads]);
   const activeLead = leads[selectedIndex] || null;
-  const quality = useMemo(() => scoreLead(activeLead), [activeLead]);
   // Retell's post-call analysis summary for the most recent call.
   const latestSummary = retell.calls[0]?.summary || "";
 
@@ -466,15 +457,10 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                   <Search size={15} aria-hidden="true" />
                   <input type="search" placeholder="Search leads by name, company, or phone…" aria-label="Search leads" />
                 </span>
-                <span className="crm-filters">
-                  <button type="button" className="crm-filter is-active">All Leads</button>
-                  <button type="button" className="crm-filter">Hot</button>
-                  <button type="button" className="crm-filter">Warm</button>
-                  <button type="button" className="crm-filter">Cold</button>
-                </span>
+                <span className="crm-count-pill">{leads.length} lead{leads.length === 1 ? "" : "s"}</span>
               </div>
 
-              <div className="crm-body">
+              <div className="crm-body crm-body-single crm-body-leads">
                 <div className="crm-table-card">
                   <div className="crm-table-head">
                     <strong>Captured Leads ({leads.length})</strong>
@@ -488,17 +474,14 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                   ) : (
                     <div className="crm-table" role="table">
                       <div className="crm-row crm-head" role="row">
-                        <span>Lead Profile</span>
-                        <span>Company</span>
-                        <span>Quality</span>
-                        <span>Interest</span>
-                        <span>Captured</span>
+                        {LEAD_COLUMNS.map((column) => (
+                          <span key={column.id} className={`crm-col-${column.id}`}>{column.label}</span>
+                        ))}
                       </div>
                       {leads.map((item, index) => (
                         <LeadRow
                           key={item.call_id || index}
                           lead={item}
-                          quality={scoreLead(item)}
                           selected={selectedIndex === index}
                           onSelect={() => setSelectedIndex(index)}
                         />
@@ -507,7 +490,7 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
                   )}
                 </div>
 
-                <LeadDetail lead={activeLead} quality={quality} callSummary={activeLead?.summary || latestSummary} />
+                <LeadDetail lead={activeLead} callSummary={activeLead?.summary || latestSummary} />
               </div>
             </>
           )}
