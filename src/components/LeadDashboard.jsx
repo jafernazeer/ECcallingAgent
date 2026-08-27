@@ -19,6 +19,19 @@ const NAV = [
   { id: "email", label: "Email Updates", icon: Mail, mobileLabel: "Email" },
 ];
 
+/**
+ * List cells show only the opening of each value; the full text is on the
+ * record. Keeping every cell to the same short length is what holds the row
+ * height constant no matter how long the captured data is.
+ */
+const LIST_PREVIEW_CHARS = 5;
+
+function preview(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return text.length > LIST_PREVIEW_CHARS ? `${text.slice(0, LIST_PREVIEW_CHARS)}..` : text;
+}
+
 /** Column order for the leads table; drives both the header and each row. */
 const LEAD_COLUMNS = [
   { id: "name", label: "Name", get: (lead) => lead.customer_name },
@@ -43,10 +56,11 @@ function LeadRow({ lead, selected, onSelect }) {
           <span
             key={column.id}
             className={`crm-cell crm-col-${column.id} ${value ? "" : "is-empty"}`}
-            /* Long requirements are clamped in CSS; keep the full text reachable. */
+            /* Only the opening is shown; the full value stays reachable here
+               and in full on the record. */
             title={value || undefined}
           >
-            {value || "—"}
+            {preview(value) || "—"}
           </span>
         );
       })}
@@ -373,7 +387,18 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
   // and keep both panes visible.
   const [detailOpen, setDetailOpen] = useState(false);
   // Live leads from Retell, with the in-call capture pinned first.
-  const leads = useMemo(() => (lead ? [lead, ...retell.leads] : retell.leads), [lead, retell.leads]);
+  // The just-captured lead is pinned first, but once Retell returns the same
+  // call it arrives again from the server - key by call_id so it appears once.
+  const leads = useMemo(() => {
+    const combined = lead ? [lead, ...retell.leads] : retell.leads;
+    const seen = new Set();
+    return combined.filter((entry, index) => {
+      const key = entry?.call_id || `row-${index}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [lead, retell.leads]);
   const activeLead = leads[selectedIndex] || null;
   // Retell's post-call analysis summary for the most recent call.
   const latestSummary = retell.calls[0]?.summary || "";

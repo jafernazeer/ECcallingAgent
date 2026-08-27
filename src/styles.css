@@ -2493,3 +2493,27 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 @media (max-width: 600px) {
   .crm-back { display: inline-flex; }
 }
+
+/* Leads list: fixed row height. Cells are truncated to a few characters in
+   JS, so nothing here can wrap a row onto a second line. */
+.crm-table .crm-row .crm-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crm-table .crm-col-requirement {
+  display: block;
+  -webkit-line-clamp: none;
+  line-clamp: none;
+}
+.crm-table button.crm-row {
+  height: 48px;
+  min-height: 48px;
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .crm-table button.crm-row { height: 52px; min-height: 52px; }
+  /* The support line under the name would reintroduce variable height. */
+  .crm-split .crm-col-company,
+  .crm-split .crm-col-phone { display: none; }
+}

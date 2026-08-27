@@ -644,11 +644,15 @@ function leadFromCall(call, captured) {
   const fromAnalysis = fieldsFromAnalysis(analysis.custom_analysis_data);
   const fromSummary = fieldsFromSummary(summary);
 
-  const fields = mergeFields(captured?.fields, fromAnalysis, fromSummary);
+  // Precedence: the AI call summary first, then the structured post-call
+  // analysis, and only then the capture tools. The tools fire mid-call and
+  // report unreliable values (including on silent calls); the summary is
+  // written afterwards from the whole conversation and tests as accurate.
+  const fields = mergeFields(fromSummary, fromAnalysis, captured?.fields);
 
   // JSON numbers drop leading zeros, so "0588499663" reaches us as 588499663.
   // Whichever source kept more digits for the same number is the correct one.
-  const phoneCandidates = [captured?.fields?.phone_number, fromAnalysis.phone_number, fromSummary.phone_number]
+  const phoneCandidates = [fromSummary.phone_number, fromAnalysis.phone_number, captured?.fields?.phone_number]
     .filter(Boolean);
   if (phoneCandidates.length > 1) {
     fields.phone_number = phoneCandidates.reduce((best, candidate) => (
@@ -673,7 +677,7 @@ function leadFromCall(call, captured) {
   return {
     ...fields,
     call_id: call.call_id,
-    source: captured ? "tool_calls" : "call_analysis",
+    source: (fromSummary.customer_name || fromSummary.company_name) ? "call_summary" : (captured ? "tool_calls" : "call_analysis"),
     summary,
     startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)).toISOString() : "",
   };
