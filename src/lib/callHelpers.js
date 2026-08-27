@@ -503,3 +503,23 @@ export function buildEmailSummary({ lead, transcript, startedAt, durationSeconds
 
   return lines.join("\n");
 }
+
+/**
+ * The dashboard is English-only. Retell's transcriber picks up background
+ * conversation in other languages - Hindi, Malayalam, Tamil and so on - and
+ * writes those turns into the transcript, which is noise the reader cannot
+ * act on. Drop a turn when it is mostly non-Latin script, and strip stray
+ * non-Latin characters from turns that are otherwise English.
+ */
+const NON_LATIN_LETTERS = /[\u0600-\u06FF\u0750-\u077F\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0D80-\u0DFF\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/g;
+const LATIN_LETTERS = /[A-Za-z]/g;
+
+export function toEnglishOnly(text) {
+  const raw = String(text || "");
+  const nonLatin = (raw.match(NON_LATIN_LETTERS) || []).length;
+  if (!nonLatin) return raw;
+  const latin = (raw.match(LATIN_LETTERS) || []).length;
+  // Predominantly another language - the whole turn is background noise.
+  if (nonLatin / (nonLatin + latin) > 0.2) return "";
+  return raw.replace(NON_LATIN_LETTERS, "").replace(/\s{2,}/g, " ").trim();
+}

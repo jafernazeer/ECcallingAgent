@@ -491,6 +491,24 @@ function callerIdentityFromCall(call) {
   };
 }
 
+
+/**
+ * The dashboard is English-only. Retell's transcriber picks up background
+ * conversation in other languages and writes those turns into the transcript,
+ * which is noise the reader cannot act on. Drop a turn that is mostly
+ * non-Latin script; strip stray non-Latin characters from the rest.
+ */
+const NON_LATIN_LETTERS = /[\u0600-\u06FF\u0750-\u077F\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0D80-\u0DFF\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/g;
+
+function toEnglishOnly(text) {
+  const raw = String(text || "");
+  const nonLatin = (raw.match(NON_LATIN_LETTERS) || []).length;
+  if (!nonLatin) return raw;
+  const latin = (raw.match(/[A-Za-z]/g) || []).length;
+  if (nonLatin / (nonLatin + latin) > 0.2) return "";
+  return raw.replace(NON_LATIN_LETTERS, "").replace(/\s{2,}/g, " ").trim();
+}
+
 function summariseCall(call) {
   const analysis = call.call_analysis || {};
   const start = Number(call.start_timestamp || 0);
@@ -716,7 +734,8 @@ app.get("/api/retell/calls/:callId", async (request, response) => {
     const call = await retellFetch(`/v2/get-call/${encodeURIComponent(request.params.callId)}`);
     const turns = Array.isArray(call.transcript_object)
       ? call.transcript_object
-          .filter((turn) => String(turn?.content || "").trim())
+          .map((turn) => ({ ...turn, content: toEnglishOnly(turn?.content) }))
+          .filter((turn) => String(turn.content || "").trim())
           .map((turn, index) => ({
             id: `${call.call_id}-${index}`,
             speaker: turn.role === "agent" ? "agent" : "user",

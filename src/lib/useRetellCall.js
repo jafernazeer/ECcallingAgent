@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { CALL_SOURCE, isAgentGoodbye, nowIso, persistCallEvent } from "./callHelpers.js";
+import { CALL_SOURCE, isAgentGoodbye, nowIso, persistCallEvent, toEnglishOnly } from "./callHelpers.js";
 import { STORAGE_KEYS, readStored, removeStored, writeStored } from "./storage.js";
 
 export const CALL_STATE = {
@@ -79,7 +79,8 @@ function friendlyError(error) {
  */
 function toDisplayTranscript(entries = []) {
   return entries
-    .filter((entry) => String(entry?.content || "").trim())
+    .map((entry) => ({ ...entry, content: toEnglishOnly(entry?.content) }))
+    .filter((entry) => String(entry.content || "").trim())
     .map((entry, index) => ({
       id: `t${index + 1}`,
       speaker: entry.role === "agent" ? "agent" : "user",
