@@ -24,6 +24,14 @@ const NAV = [
  * record. Keeping every cell to the same short length is what holds the row
  * height constant no matter how long the captured data is.
  */
+const SCORE_WORD = {
+  1: "Poor",
+  2: "Below expectations",
+  3: "Okay",
+  4: "Good",
+  5: "Excellent",
+};
+
 const LIST_PREVIEW_CHARS = 5;
 
 function preview(value) {
@@ -110,6 +118,25 @@ function LeadDetail({ lead, callSummary, onBack }) {
         <span>{lead.requirement_source === "transcript" ? "Extracted transcript notes" : "AI call summary"}</span>
         <p>{callSummary || lead.requirement_summary || "Requirement not captured on this call."}</p>
       </div>
+
+      {/* The caller's own verdict on the call, directly under the AI's account
+          of it - the two read together or not at all. */}
+      {lead.feedback && (
+        <div className={`crm-notes crm-feedback tone-${lead.feedback.score <= 3 ? "low" : "high"}`}>
+          <span>Caller feedback</span>
+          <p className="crm-feedback-score">
+            <strong>{lead.feedback.score}</strong>
+            <span className="crm-feedback-outof">/ 5</span>
+            <span className="crm-feedback-verdict">{SCORE_WORD[lead.feedback.score] || ""}</span>
+          </p>
+          {Array.isArray(lead.feedback.reasons) && lead.feedback.reasons.length > 0 && (
+            <ul className="crm-feedback-reasons">
+              {lead.feedback.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+          )}
+          {lead.feedback.comment && <p className="crm-feedback-comment">“{lead.feedback.comment}”</p>}
+        </div>
+      )}
     </aside>
   );
 }

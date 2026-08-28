@@ -709,7 +709,14 @@ app.get("/api/retell/leads", async (_request, response) => {
   try {
     const calls = await listRetellCalls();
     const leads = calls
-      .map((call) => leadFromCall(call, liveLeads.get(call.call_id)))
+      .map((call) => {
+        const lead = leadFromCall(call, liveLeads.get(call.call_id));
+        if (!lead) return null;
+        // The caller rates the call from the portal keyed by Retell's call_id,
+        // so their verdict lands on the same record as the lead they became.
+        const feedback = callFeedback.get(call.call_id);
+        return feedback ? { ...lead, feedback } : lead;
+      })
       .filter(Boolean);
 
     response.json({ ok: true, leads });

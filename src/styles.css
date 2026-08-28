@@ -2703,3 +2703,36 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 @media (prefers-reduced-motion: reduce) {
   .feedback-star, .feedback-chip { transition: none; }
 }
+
+/* Caller feedback on a lead record — sits under the AI call summary and is
+   tinted by score so a poor rating is visible without reading it. */
+.crm-feedback { margin-top: 12px; border-left: 3px solid var(--line); }
+.crm-feedback.tone-high { border-left-color: #38c986; background: rgba(56, 201, 134, 0.07); }
+.crm-feedback.tone-low { border-left-color: #d69e2e; background: rgba(214, 158, 46, 0.09); }
+
+.crm-feedback-score {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.crm-feedback-score strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.crm-feedback-outof { font-size: 13px; color: var(--ash); }
+.crm-feedback-verdict { margin-left: 4px; font-size: 13px; color: var(--taupe); }
+
+.crm-feedback-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.crm-feedback-reasons li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(23, 21, 19, 0.07);
+  font-size: 11.5px;
+  color: var(--taupe);
+}
+.crm-feedback-comment { margin: 0; font-style: italic; line-height: 1.6; }
