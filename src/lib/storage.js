@@ -10,6 +10,7 @@ const SCHEMA_VERSION = 1;
 export const STORAGE_KEYS = {
   lead: "ethikcorp_ec_calling_agent_latest_lead",
   transcript: "ethikcorp_ec_calling_agent_latest_transcript",
+  completedCall: "ethikcorp_ec_calling_agent_latest_completed_call",
   recipients: "ethikcorp_ec_calling_agent_notification_recipients",
 };
 

@@ -99,7 +99,9 @@ export function useRetellCall() {
   const [elapsed, setElapsed] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState("");
-  const [completedCall, setCompletedCall] = useState(null);
+  // Restored from storage so the finished-call view - and the feedback panel
+  // that hangs off it - survives a page reload.
+  const [completedCall, setCompletedCall] = useState(() => readStored(STORAGE_KEYS.completedCall, null));
 
   const clientRef = useRef(null);
   const goodbyeTimerRef = useRef(null);
@@ -163,13 +165,15 @@ export function useRetellCall() {
 
     writeStored(STORAGE_KEYS.transcript, finalTranscript);
     setIsMuted(false);
-    setCompletedCall({
+    const completed = {
       sessionId,
       lead,
       transcript: finalTranscript,
       startedAt: startedAtRef.current,
       durationSeconds: elapsedRef.current,
-    });
+    };
+    setCompletedCall(completed);
+    writeStored(STORAGE_KEYS.completedCall, completed);
 
     eventQueueRef.current.catch(() => {}).then(() => applyState(CALL_STATE.completed));
 
@@ -177,7 +181,12 @@ export function useRetellCall() {
     pollLead(sessionId, (fields) => {
       setLead(fields);
       writeStored(STORAGE_KEYS.lead, fields);
-      setCompletedCall((current) => (current ? { ...current, lead: fields } : current));
+      setCompletedCall((current) => {
+        if (!current) return current;
+        const merged = { ...current, lead: fields };
+        writeStored(STORAGE_KEYS.completedCall, merged);
+        return merged;
+      });
     });
   }
 
@@ -191,6 +200,7 @@ export function useRetellCall() {
     setTranscript([]);
     setLead(null);
     setCompletedCall(null);
+    removeStored(STORAGE_KEYS.completedCall);
     setErrorInfo(null);
     setElapsed(0);
     setIsMuted(false);
@@ -300,6 +310,7 @@ export function useRetellCall() {
   const clearTestData = useCallback(() => {
     removeStored(STORAGE_KEYS.lead);
     removeStored(STORAGE_KEYS.transcript);
+    removeStored(STORAGE_KEYS.completedCall);
     transcriptRef.current = [];
     setTranscript([]);
     setLead(null);
