@@ -718,6 +718,41 @@ app.get("/api/retell/leads", async (_request, response) => {
   }
 });
 
+/**
+ * Caller feedback on a finished call: a 1-5 CSAT score, optional reason chips
+ * and optional free text. Kept in memory alongside the call store; the score
+ * is what aggregates, the verbatim is what explains it.
+ */
+const callFeedback = new Map();
+
+app.post("/api/feedback", (request, response) => {
+  const { sessionId, score, reasons, comment, submittedAt } = request.body || {};
+  const numericScore = Number(score);
+  if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 5) {
+    response.status(400).json({ ok: false, error: "score must be an integer from 1 to 5" });
+    return;
+  }
+  const entry = {
+    sessionId: String(sessionId || "").slice(0, 128),
+    score: numericScore,
+    reasons: Array.isArray(reasons) ? reasons.slice(0, 10).map((r) => String(r).slice(0, 80)) : [],
+    comment: String(comment || "").slice(0, 600),
+    submittedAt: submittedAt || new Date().toISOString(),
+  };
+  callFeedback.set(entry.sessionId || `anon-${callFeedback.size + 1}`, entry);
+  console.log(`[feedback] ${entry.score}/5 ${entry.reasons.join(", ")} ${entry.comment ? `- "${entry.comment}"` : ""}`);
+  response.json({ ok: true });
+});
+
+/** Aggregate feedback for the dashboard. */
+app.get("/api/feedback", (_request, response) => {
+  const all = [...callFeedback.values()];
+  const average = all.length
+    ? Math.round((all.reduce((sum, f) => sum + f.score, 0) / all.length) * 10) / 10
+    : null;
+  response.json({ ok: true, count: all.length, average, feedback: all });
+});
+
 /** Call history for the Call Transcripts tab. */
 app.get("/api/retell/calls", async (_request, response) => {
   try {

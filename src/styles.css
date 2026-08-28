@@ -2517,3 +2517,189 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .crm-split .crm-col-company,
   .crm-split .crm-col-phone { display: none; }
 }
+
+/* ============================================================
+   Post-call feedback — CSAT 1-5, reason chips, optional verbatim
+   Reuses the portal's section/card language: same dark card, same
+   eyebrow, same green accent and radius scale.
+   ============================================================ */
+
+.feedback-section { padding-top: 0; }
+
+.feedback-card {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 34px 32px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  background: linear-gradient(160deg, #1c1a22 0%, #131218 100%);
+  color: #f7f5f2;
+  box-shadow: 0 30px 64px -44px rgba(0, 0, 0, 0.7);
+}
+
+.feedback-head h2 {
+  margin: 6px 0 8px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  color: #f8f6f3;
+}
+.feedback-sub {
+  margin: 0;
+  max-width: 58ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #a09da8;
+}
+
+.feedback-card fieldset { margin: 0; padding: 0; border: 0; }
+.feedback-card legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a09da8;
+}
+.feedback-card legend span { text-transform: none; letter-spacing: 0; opacity: 0.6; }
+
+/* --- Rating: five discrete targets, not a slider. A slider needs precise
+   dragging and gives no discrete affordance on touch. --- */
+.feedback-scale-row { display: flex; gap: 10px; }
+
+.feedback-star {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 56px;
+  min-height: 56px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #6f6b78;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.feedback-star:hover { background: rgba(255, 255, 255, 0.07); }
+.feedback-star.is-on {
+  border-color: rgba(56, 201, 134, 0.55);
+  background: rgba(56, 201, 134, 0.14);
+  color: #38c986;
+}
+.feedback-star svg { fill: currentColor; }
+/* The number is not decoration - it keeps the scale legible without colour. */
+.feedback-star-num { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.feedback-scale-label {
+  min-height: 20px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #38c986;
+}
+
+/* --- Reason chips --- */
+.feedback-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.feedback-chip {
+  /* 44px minimum: these are primary tap targets, not decoration. */
+  min-height: 44px;
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfccd6;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.feedback-chip:hover { background: rgba(255, 255, 255, 0.08); }
+.feedback-chip.is-on {
+  border-color: rgba(56, 201, 134, 0.55);
+  background: rgba(56, 201, 134, 0.16);
+  color: #7ce0b2;
+  font-weight: 500;
+}
+
+/* --- Free text --- */
+.feedback-field { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.feedback-field label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a09da8;
+}
+.feedback-field label span { text-transform: none; letter-spacing: 0; opacity: 0.6; }
+
+.feedback-field textarea {
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f7f5f2;
+  font: inherit;
+  /* 16px stops iOS zooming the page when the field takes focus. */
+  font-size: 16px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.feedback-field textarea::placeholder { color: #6f6b78; }
+.feedback-field textarea:focus-visible {
+  outline: 2px solid #38c986;
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.feedback-count {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: #6f6b78;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Actions --- */
+.feedback-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.feedback-actions .btn-primary { min-height: 46px; padding: 0 24px; }
+.feedback-actions .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.feedback-hint { font-size: 12.5px; color: #6f6b78; }
+.feedback-error { margin: 0; font-size: 13.5px; color: #ff9d8a; }
+
+/* --- Submitted --- */
+.feedback-card.is-done { align-items: flex-start; gap: 10px; }
+.feedback-done-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(56, 201, 134, 0.16);
+  color: #38c986;
+}
+.feedback-card.is-done h2 { margin: 4px 0 0; font-size: 22px; }
+.feedback-card.is-done p { margin: 0; font-size: 14.5px; color: #a09da8; }
+
+.feedback-star:focus-visible,
+.feedback-chip:focus-visible {
+  outline: 2px solid #38c986;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .feedback-card { padding: 24px 18px 22px; border-radius: 20px; gap: 18px; }
+  .feedback-head h2 { font-size: 21px; }
+  .feedback-scale-row { gap: 7px; }
+  /* Five targets must still fit 375px without shrinking below 44px. */
+  .feedback-star { flex: 1; width: auto; min-width: 44px; min-height: 52px; }
+  .feedback-actions .btn-primary { width: 100%; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-star, .feedback-chip { transition: none; }
+}
