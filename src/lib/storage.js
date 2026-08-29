@@ -5,7 +5,7 @@
  * historical lead database. Never store secrets or tokens here.
  */
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export const STORAGE_KEYS = {
   lead: "ethikcorp_ec_calling_agent_latest_lead",
