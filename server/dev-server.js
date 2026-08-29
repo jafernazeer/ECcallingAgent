@@ -748,24 +748,31 @@ app.post("/api/feedback", (request, response) => {
 
   // Answer the browser immediately - the caller should not wait on Google.
   response.json({ ok: true });
-  forwardFeedbackToSheet(entry).catch((error) => {
-    console.error("[feedback] sheet forward failed:", error.message);
+  emailFeedback(entry).catch((error) => {
+    console.error("[feedback] email failed:", error.message);
   });
 });
 
 /**
- * Push one feedback entry to Google Sheets via an Apps Script Web App.
- * A webhook is used rather than the Sheets API so the server needs no Google
- * credentials - the script URL is the only secret, and it stays server-side.
+ * Email one feedback entry to the team, resolved against the call it belongs
+ * to so the message carries the caller it is about rather than just a score.
  */
-async function forwardFeedbackToSheet(entry) {
-  const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL || "";
-  if (!webhook) {
-    console.warn("[feedback] GOOGLE_SHEETS_WEBHOOK_URL is not set - feedback kept in memory only.");
+const FEEDBACK_RECIPIENT = process.env.FEEDBACK_EMAIL_TO || "niyas@ethikcorp.com";
+
+const SCORE_WORD = {
+  1: "Poor",
+  2: "Below expectations",
+  3: "Okay",
+  4: "Good",
+  5: "Excellent",
+};
+
+async function emailFeedback(entry) {
+  if (!smtpHost || !emailFrom) {
+    console.warn("[feedback] SMTP is not configured - feedback kept in memory only.");
     return;
   }
 
-  // Attach who this was, so a row is actionable without a second lookup.
   let caller = {};
   try {
     if (entry.sessionId) {
@@ -779,7 +786,7 @@ async function forwardFeedbackToSheet(entry) {
           phone: lead.phone_number || "",
           email: lead.email || "",
           requirement: lead.requirement_summary || "",
-          callSummary: lead.summary || "",
+          summary: lead.summary || "",
         };
       }
     }
@@ -788,28 +795,34 @@ async function forwardFeedbackToSheet(entry) {
     console.warn("[feedback] could not resolve caller:", error.message);
   }
 
-  const payload = {
-    submittedAt: entry.submittedAt,
-    callId: entry.sessionId,
-    score: entry.score,
-    reasons: entry.reasons.join(", "),
-    comment: entry.comment,
-    callerName: caller.name || "",
-    callerCompany: caller.company || "",
-    callerLocation: caller.location || "",
-    callerPhone: caller.phone || "",
-    callerEmail: caller.email || "",
-    requirement: caller.requirement || "",
-    callSummary: caller.callSummary || "",
-  };
+  const who = caller.name || "Unknown caller";
+  const verdict = SCORE_WORD[entry.score] || "";
+  // The subject carries the score and the caller, so the inbox is triageable
+  // without opening anything.
+  const subject = `EC Calling Agent feedback — ${entry.score}/5 from ${who}`;
 
-  const upstream = await fetch(webhook, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!upstream.ok) throw new Error(`sheet webhook returned ${upstream.status}`);
-  console.log(`[feedback] forwarded to sheet for ${payload.callerName || "unknown caller"}`);
+  const lines = [
+    `Rating: ${entry.score}/5${verdict ? ` (${verdict})` : ""}`,
+    entry.reasons.length ? `What they flagged: ${entry.reasons.join(", ")}` : "",
+    entry.comment ? `In their words: "${entry.comment}"` : "",
+    "",
+    "CALLER",
+    `Name: ${caller.name || "—"}`,
+    `Company: ${caller.company || "—"}`,
+    `Location: ${caller.location || "—"}`,
+    `Contact number: ${caller.phone || "—"}`,
+    `Email: ${caller.email || "—"}`,
+    `Requirement: ${caller.requirement || "—"}`,
+    "",
+    "AI CALL SUMMARY",
+    caller.summary || "—",
+    "",
+    `Call ID: ${entry.sessionId || "—"}`,
+    `Submitted: ${entry.submittedAt}`,
+  ].filter((line) => line !== "");
+
+  await sendEmailSummary(FEEDBACK_RECIPIENT, subject, lines.join("\n"));
+  console.log(`[feedback] emailed to ${FEEDBACK_RECIPIENT} for ${who}`);
 }
 
 /** Aggregate feedback for the dashboard. */
