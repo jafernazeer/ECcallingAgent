@@ -709,15 +709,12 @@ app.get("/api/retell/leads", async (_request, response) => {
   try {
     const calls = await listRetellCalls();
     const leads = calls
-      .map((call) => {
-        const lead = leadFromCall(call, liveLeads.get(call.call_id));
-        if (!lead) return null;
-        // The caller rates the call from the portal keyed by Retell's call_id,
-        // so their verdict lands on the same record as the lead they became.
-        const feedback = callFeedback.get(call.call_id);
-        return feedback ? { ...lead, feedback } : lead;
-      })
-      .filter(Boolean);
+      .map((call) => leadFromCall(call, liveLeads.get(call.call_id)))
+      .filter(Boolean)
+      // A lead is a caller we can follow up with. A call that yielded only a
+      // name, or nothing at all, is call history - Retell already holds that,
+      // so it does not belong in the leads list.
+      .filter((lead) => lead.customer_name && (lead.phone_number || lead.email));
 
     response.json({ ok: true, leads });
   } catch (error) {
@@ -748,8 +745,72 @@ app.post("/api/feedback", (request, response) => {
   };
   callFeedback.set(entry.sessionId || `anon-${callFeedback.size + 1}`, entry);
   console.log(`[feedback] ${entry.score}/5 ${entry.reasons.join(", ")} ${entry.comment ? `- "${entry.comment}"` : ""}`);
+
+  // Answer the browser immediately - the caller should not wait on Google.
   response.json({ ok: true });
+  forwardFeedbackToSheet(entry).catch((error) => {
+    console.error("[feedback] sheet forward failed:", error.message);
+  });
 });
+
+/**
+ * Push one feedback entry to Google Sheets via an Apps Script Web App.
+ * A webhook is used rather than the Sheets API so the server needs no Google
+ * credentials - the script URL is the only secret, and it stays server-side.
+ */
+async function forwardFeedbackToSheet(entry) {
+  const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL || "";
+  if (!webhook) {
+    console.warn("[feedback] GOOGLE_SHEETS_WEBHOOK_URL is not set - feedback kept in memory only.");
+    return;
+  }
+
+  // Attach who this was, so a row is actionable without a second lookup.
+  let caller = {};
+  try {
+    if (entry.sessionId) {
+      const call = await retellFetch(`/v2/get-call/${encodeURIComponent(entry.sessionId)}`);
+      const lead = leadFromCall(call, liveLeads.get(entry.sessionId));
+      if (lead) {
+        caller = {
+          name: lead.customer_name || "",
+          company: lead.company_name || "",
+          location: lead.location || "",
+          phone: lead.phone_number || "",
+          email: lead.email || "",
+          requirement: lead.requirement_summary || "",
+          callSummary: lead.summary || "",
+        };
+      }
+    }
+  } catch (error) {
+    // A missing caller record must not cost us the rating itself.
+    console.warn("[feedback] could not resolve caller:", error.message);
+  }
+
+  const payload = {
+    submittedAt: entry.submittedAt,
+    callId: entry.sessionId,
+    score: entry.score,
+    reasons: entry.reasons.join(", "),
+    comment: entry.comment,
+    callerName: caller.name || "",
+    callerCompany: caller.company || "",
+    callerLocation: caller.location || "",
+    callerPhone: caller.phone || "",
+    callerEmail: caller.email || "",
+    requirement: caller.requirement || "",
+    callSummary: caller.callSummary || "",
+  };
+
+  const upstream = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!upstream.ok) throw new Error(`sheet webhook returned ${upstream.status}`);
+  console.log(`[feedback] forwarded to sheet for ${payload.callerName || "unknown caller"}`);
+}
 
 /** Aggregate feedback for the dashboard. */
 app.get("/api/feedback", (_request, response) => {
