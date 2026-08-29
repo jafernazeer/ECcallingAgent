@@ -433,6 +433,23 @@ app.post("/api/retell/web-call", async (request, response) => {
   }
 });
 
+/**
+ * Optional cutoff: only calls started at or after this instant reach the
+ * portal. Accepts an ISO date or an epoch-milliseconds value. Unset shows
+ * everything, which is the default.
+ */
+const portalCallsSince = (() => {
+  const raw = String(process.env.PORTAL_CALLS_SINCE || "").trim();
+  if (!raw) return 0;
+  const parsed = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
+  if (!Number.isFinite(parsed)) {
+    console.warn(`[portal] PORTAL_CALLS_SINCE is not a valid date: "${raw}" - showing all calls.`);
+    return 0;
+  }
+  console.log(`[portal] hiding calls before ${new Date(parsed).toISOString()}`);
+  return parsed;
+})();
+
 /** Cached Retell call list — the dashboard reads through these, not the DB. */
 const retellCache = { calls: null, at: 0 };
 const RETELL_CACHE_MS = 30000;
@@ -466,7 +483,13 @@ async function listRetellCalls({ force = false } = {}) {
       sort_order: "descending",
     }),
   });
-  const calls = Array.isArray(result) ? result : (result?.calls || []);
+  const all = Array.isArray(result) ? result : (result?.calls || []);
+  // Hide everything before the cutoff so the portal can be reset for a demo
+  // without destroying anything - the calls stay in Retell, they just stop
+  // appearing here. Clear PORTAL_CALLS_SINCE to bring the history back.
+  const calls = portalCallsSince
+    ? all.filter((call) => Number(call.start_timestamp || 0) >= portalCallsSince)
+    : all;
   retellCache.calls = calls;
   retellCache.at = Date.now();
   return calls;
