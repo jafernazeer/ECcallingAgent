@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   lead: "ethikcorp_ec_calling_agent_latest_lead",
   transcript: "ethikcorp_ec_calling_agent_latest_transcript",
   completedCall: "ethikcorp_ec_calling_agent_latest_completed_call",
+  sessionCalls: "ethikcorp_ec_calling_agent_session_calls",
   recipients: "ethikcorp_ec_calling_agent_notification_recipients",
 };
 

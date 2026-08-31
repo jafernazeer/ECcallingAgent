@@ -9,12 +9,20 @@ import { useRetellCall } from "./lib/useRetellCall.js";
 export default function App() {
   const call = useRetellCall();
   const resultsRef = useRef(null);
+  // The completed call is restored from storage on mount, so without this the
+  // scroll below fired on every reload and dropped the visitor into the leads
+  // section instead of the phone they came to try.
+  const scrolledFor = useRef(call.completedCall?.sessionId || "");
 
   // The captured lead is the point of the call, but it renders below the fold.
   // Bring it into view the moment the call completes rather than leaving the
   // caller on a finished phone mockup wondering what happened.
   useEffect(() => {
-    if (!call.completedCall?.sessionId || !resultsRef.current) return;
+    const sessionId = call.completedCall?.sessionId;
+    if (!sessionId || !resultsRef.current) return;
+    // Only scroll for a call that finished while this page was open.
+    if (scrolledFor.current === sessionId) return;
+    scrolledFor.current = sessionId;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     resultsRef.current.scrollIntoView({
       behavior: reduced ? "auto" : "smooth",

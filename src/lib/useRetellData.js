@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { STORAGE_KEYS, readStored } from "./storage.js";
 
 /**
  * Reads live Retell data through the server proxy. The Retell secret key stays
@@ -20,8 +21,14 @@ export function useRetellData() {
         fetch("/api/retell/analytics").then((r) => r.json()),
         fetch("/api/retell/leads").then((r) => r.json()),
       ]);
-      if (leadsResponse?.ok) setLeads(leadsResponse.leads || []);
-      if (callsResponse?.ok) setCalls(callsResponse.calls || []);
+      // Scope everything to the calls this browser placed. The endpoints
+      // return the agent's full history, which belongs to whoever made those
+      // calls - not to whoever happens to open the portal next.
+      const owned = new Set(readStored(STORAGE_KEYS.sessionCalls, []) || []);
+      const mine = (items, key) => items.filter((item) => owned.has(item?.[key]));
+
+      if (leadsResponse?.ok) setLeads(mine(leadsResponse.leads || [], "call_id"));
+      if (callsResponse?.ok) setCalls(mine(callsResponse.calls || [], "callId"));
       else setError(callsResponse?.error || "Could not load call history.");
       if (analyticsResponse?.ok) setAnalytics(analyticsResponse);
     } catch {

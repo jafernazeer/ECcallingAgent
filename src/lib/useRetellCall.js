@@ -201,6 +201,7 @@ export function useRetellCall() {
     setLead(null);
     setCompletedCall(null);
     removeStored(STORAGE_KEYS.completedCall);
+    removeStored(STORAGE_KEYS.sessionCalls);
     setErrorInfo(null);
     setElapsed(0);
     setIsMuted(false);
@@ -217,6 +218,13 @@ export function useRetellCall() {
       callIdRef.current = callId || `retell-${Date.now()}`;
       endedRef.current.delete(callIdRef.current);
       setCallStartedAt(startedAt);
+
+      // Several people test from the same deployment, so the portal only ever
+      // shows calls this browser placed. Their leads are not ours to display.
+      const owned = readStored(STORAGE_KEYS.sessionCalls, []) || [];
+      if (!owned.includes(callIdRef.current)) {
+        writeStored(STORAGE_KEYS.sessionCalls, [callIdRef.current, ...owned].slice(0, 25));
+      }
 
       emit({ type: "call-created", sessionId: callIdRef.current, startedAt, channel: "Voice", source: CALL_SOURCE });
 
@@ -311,6 +319,7 @@ export function useRetellCall() {
     removeStored(STORAGE_KEYS.lead);
     removeStored(STORAGE_KEYS.transcript);
     removeStored(STORAGE_KEYS.completedCall);
+    removeStored(STORAGE_KEYS.sessionCalls);
     transcriptRef.current = [];
     setTranscript([]);
     setLead(null);
