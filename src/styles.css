@@ -2816,3 +2816,66 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
 @media (prefers-reduced-motion: reduce) {
   .feedback-star:active { transform: none; }
 }
+
+/* ============================================================
+   Leads list — show the record, not just a name
+   ============================================================ */
+
+/* Desktop: email must read across, not wrap down the column. It was the one
+   cell allowed to break mid-word, which stacked it vertically. */
+.crm-col-email {
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  /* Two lines per row: the name leads, the rest of the record follows
+     beneath it. A name alone is not enough to pick a lead out of a list. */
+  .crm-split .crm-row {
+    grid-template-columns: repeat(3, minmax(0, auto));
+    grid-template-rows: auto auto;
+    justify-content: start;
+    align-content: center;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+  .crm-split button.crm-row { height: 60px; min-height: 60px; }
+
+  .crm-split .crm-col-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  /* Company, phone and email share the second line, each still trimmed to
+     its opening characters so the row height never moves. */
+  .crm-split .crm-col-company,
+  .crm-split .crm-col-phone,
+  .crm-split .crm-col-email {
+    display: block;
+    grid-row: 2;
+    font-size: 11.5px;
+    color: var(--ash);
+    white-space: nowrap;
+  }
+  .crm-split .crm-col-company { grid-column: 1; }
+  .crm-split .crm-col-phone { grid-column: 2; font-variant-numeric: tabular-nums; }
+  .crm-split .crm-col-email { grid-column: 3; }
+
+  /* Location and requirement stay on the record, not the list. */
+  .crm-split .crm-col-location,
+  .crm-split .crm-col-requirement { display: none; }
+
+  /* Separators between the second-line fields, so they do not read as one
+     run-on string. */
+  .crm-split .crm-col-phone::before,
+  .crm-split .crm-col-email::before {
+    content: "·";
+    margin-right: 8px;
+    color: var(--line);
+  }
+}
