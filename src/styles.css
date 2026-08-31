@@ -2736,3 +2736,83 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   color: var(--taupe);
 }
 .crm-feedback-comment { margin: 0; font-style: italic; line-height: 1.6; }
+
+/* ============================================================
+   Feedback panel — size it to the view
+   The card ran the full content width, so five 56px rating buttons
+   sat in a 1114px row and the form floated in dead space. Desktop
+   now splits it: the ask on the left, the controls on the right.
+   ============================================================ */
+
+.feedback-card {
+  /* A form is not a page - cap the measure even before the split. */
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+@media (min-width: 901px) {
+  .feedback-card {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    column-gap: 56px;
+    row-gap: 20px;
+    align-items: start;
+    padding: 40px 44px 38px;
+  }
+
+  /* The ask holds the left column for the whole card height. */
+  .feedback-head {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: center;
+  }
+  .feedback-card > *:not(.feedback-head) { grid-column: 2; }
+
+  .feedback-head h2 { font-size: 28px; line-height: 1.2; }
+  .feedback-sub { font-size: 14px; max-width: 34ch; }
+
+  /* Controls fill their column rather than huddling at the left edge. */
+  .feedback-scale-row { gap: 12px; }
+  .feedback-star { flex: 0 0 auto; width: 62px; min-height: 62px; border-radius: 16px; }
+  .feedback-star svg { width: 24px; height: 24px; }
+
+  .feedback-actions { justify-content: flex-start; padding-top: 4px; }
+  .feedback-actions .btn-primary { min-height: 48px; padding: 0 28px; }
+
+  .feedback-card.is-done {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 30px 44px;
+  }
+  .feedback-card.is-done h2 { margin: 0; }
+}
+
+/* Tablet and narrow desktop: one column, but not edge to edge. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .feedback-card { max-width: 620px; padding: 32px 30px 28px; }
+  .feedback-star { width: 60px; min-height: 58px; }
+}
+
+/* --- Selected rating reads as chosen, not merely tinted --- */
+.feedback-star.is-on {
+  box-shadow: 0 0 0 1px rgba(56, 201, 134, 0.35), 0 6px 18px -10px rgba(56, 201, 134, 0.7);
+}
+.feedback-star:active { transform: scale(0.96); }
+
+@media (max-width: 600px) {
+  .feedback-card { padding: 26px 18px 24px; border-radius: 22px; gap: 20px; }
+  .feedback-head h2 { font-size: 22px; line-height: 1.25; }
+  .feedback-sub { font-size: 14px; }
+  /* Five targets share the width evenly and stay square-ish. */
+  .feedback-star { border-radius: 15px; min-height: 56px; }
+  .feedback-star svg { width: 22px; height: 22px; }
+  .feedback-chips { gap: 7px; }
+  .feedback-chip { font-size: 12.5px; padding: 11px 14px; }
+  .feedback-card.is-done { padding: 26px 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-star:active { transform: none; }
+}
