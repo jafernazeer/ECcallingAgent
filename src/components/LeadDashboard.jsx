@@ -25,11 +25,16 @@ const NAV = [
  * height constant no matter how long the captured data is.
  */
 const LIST_PREVIEW_CHARS = 5;
+// The name is what distinguishes one row from another, so it gets far more
+// room than the supporting fields. At five characters "Muhammad Nias" and
+// "Muhammad Niyas" both render as "Muham.." and the list appears to contain
+// duplicates when it does not.
+const NAME_PREVIEW_CHARS = 22;
 
-function preview(value) {
+function preview(value, limit = LIST_PREVIEW_CHARS) {
   const text = String(value ?? "").trim();
   if (!text) return "";
-  return text.length > LIST_PREVIEW_CHARS ? `${text.slice(0, LIST_PREVIEW_CHARS)}..` : text;
+  return text.length > limit ? `${text.slice(0, limit)}..` : text;
 }
 
 /** Column order for the leads table; drives both the header and each row. */
@@ -60,7 +65,7 @@ function LeadRow({ lead, selected, onSelect }) {
                and in full on the record. */
             title={value || undefined}
           >
-            {preview(value) || "—"}
+            {preview(value, column.id === "name" ? NAME_PREVIEW_CHARS : LIST_PREVIEW_CHARS) || "—"}
           </span>
         );
       })}
