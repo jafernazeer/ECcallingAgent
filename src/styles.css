@@ -2879,3 +2879,56 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
     color: var(--line);
   }
 }
+
+/* ============================================================
+   Feedback — three rated criteria
+   Each criterion is its own labelled row, so the reader knows what
+   they are scoring rather than guessing at one overall number.
+   ============================================================ */
+
+.feedback-criteria { display: flex; flex-direction: column; gap: 18px; }
+
+.feedback-criterion { margin: 0; padding: 0; border: 0; }
+.feedback-criterion legend {
+  padding: 0;
+  margin-bottom: 9px;
+  /* Sentence case, not uppercase - these are questions, not field labels. */
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #d8d5de;
+}
+
+.feedback-criteria .feedback-scale-row { align-items: center; gap: 8px; }
+.feedback-criteria .feedback-star { width: 50px; min-height: 50px; border-radius: 13px; }
+.feedback-criteria .feedback-star svg { width: 18px; height: 18px; }
+
+/* The verdict sits beside the row, so no vertical space is reserved per
+   criterion and the three rows stay evenly spaced. */
+.feedback-criteria .feedback-scale-label {
+  min-height: 0;
+  margin: 0 0 0 6px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.feedback-head h2 { text-wrap: balance; }
+
+@media (min-width: 901px) {
+  /* The heading is a full sentence now, so the left column earns more room. */
+  .feedback-card { grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); }
+  .feedback-head h2 { font-size: 25px; }
+  .feedback-sub { font-size: 13.5px; }
+}
+
+@media (max-width: 600px) {
+  .feedback-head h2 { font-size: 19px; }
+  .feedback-criteria { gap: 16px; }
+  .feedback-criterion legend { font-size: 13.5px; margin-bottom: 8px; }
+  /* Five targets plus the verdict cannot share one line at 375px - the
+     verdict moves under the row rather than squeezing the targets. */
+  .feedback-criteria .feedback-scale-row { flex-wrap: wrap; gap: 7px; }
+  .feedback-criteria .feedback-star { flex: 1; min-width: 44px; min-height: 48px; }
+  .feedback-criteria .feedback-scale-label { flex-basis: 100%; margin: 2px 0 0; }
+}

@@ -14,9 +14,8 @@ export default function App() {
   // section instead of the phone they came to try.
   const scrolledFor = useRef(call.completedCall?.sessionId || "");
 
-  // The captured lead is the point of the call, but it renders below the fold.
-  // Bring it into view the moment the call completes rather than leaving the
-  // caller on a finished phone mockup wondering what happened.
+  // A finished call should land the caller on the thing we want from them.
+  // The dashboard is above it and still reachable by scrolling up.
   useEffect(() => {
     const sessionId = call.completedCall?.sessionId;
     if (!sessionId || !resultsRef.current) return;
@@ -50,7 +49,7 @@ export default function App() {
           </p>
         </section>
 
-        <div className="content-shell" ref={resultsRef}>
+        <div className="content-shell">
           <LeadDashboard
             lead={call.lead}
             transcript={call.transcript}
@@ -58,7 +57,9 @@ export default function App() {
             completedCall={call.completedCall}
           />
 
-          <FeedbackPanel completedCall={call.completedCall} />
+          <div ref={resultsRef}>
+            <FeedbackPanel completedCall={call.completedCall} />
+          </div>
 
           <EmailRecipients
             completedCall={call.completedCall}

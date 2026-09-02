@@ -3,6 +3,17 @@ import { Check, Star } from "lucide-react";
 
 const SCORES = [1, 2, 3, 4, 5];
 
+/**
+ * Three dimensions rather than one overall score. "It was a 3" tells you
+ * nothing actionable; "natural 5, understood me 2" points straight at the
+ * transcription rather than the voice.
+ */
+const CRITERIA = [
+  { id: "natural", label: "How natural the conversation felt" },
+  { id: "understanding", label: "How well it understood you" },
+  { id: "responsiveness", label: "How quickly and smoothly it responded" },
+];
+
 const SCORE_LABEL = {
   1: "Poor",
   2: "Below expectations",
@@ -11,31 +22,8 @@ const SCORE_LABEL = {
   5: "Excellent",
 };
 
-/**
- * Reason chips are conditional on the score. Asking a happy caller "what went
- * wrong" reads as tone-deaf, and asking an unhappy one "what did you like"
- * wastes the one moment they are willing to tell you what to fix.
- */
-const REASONS_LOW = [
-  "Misheard my details",
-  "Repeated itself",
-  "Too slow to respond",
-  "Sounded robotic",
-  "Didn't answer my question",
-  "Ended the call too early",
-];
-
-const REASONS_HIGH = [
-  "Understood me clearly",
-  "Natural to talk to",
-  "Quick and efficient",
-  "Got my details right",
-  "Answered what I asked",
-];
-
 export function FeedbackPanel({ completedCall }) {
-  const [score, setScore] = useState(null);
-  const [reasons, setReasons] = useState([]);
+  const [scores, setScores] = useState({});
   const [comment, setComment] = useState("");
   const [state, setState] = useState("idle"); // idle | sending | sent | error
   const [error, setError] = useState("");
@@ -47,24 +35,18 @@ export function FeedbackPanel({ completedCall }) {
   useEffect(() => {
     if (!sessionId || sessionId === sessionRef.current) return;
     sessionRef.current = sessionId;
-    setScore(null);
-    setReasons([]);
+    setScores({});
     setComment("");
     setState("idle");
     setError("");
   }, [sessionId]);
 
-  const chips = useMemo(() => (score && score <= 3 ? REASONS_LOW : REASONS_HIGH), [score]);
-
-  function toggleReason(reason) {
-    setReasons((current) => (
-      current.includes(reason) ? current.filter((r) => r !== reason) : [...current, reason]
-    ));
-  }
+  const answered = useMemo(() => CRITERIA.filter((c) => scores[c.id]).length, [scores]);
+  const canSubmit = answered > 0;
 
   async function submit(event) {
     event.preventDefault();
-    if (!score || state === "sending") return;
+    if (!canSubmit || state === "sending") return;
     setState("sending");
     setError("");
     try {
@@ -73,8 +55,7 @@ export function FeedbackPanel({ completedCall }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          score,
-          reasons,
+          scores,
           comment: comment.trim(),
           submittedAt: new Date().toISOString(),
         }),
@@ -94,8 +75,10 @@ export function FeedbackPanel({ completedCall }) {
       <section className="section feedback-section" aria-labelledby="feedback-heading">
         <div className="feedback-card is-done" role="status">
           <span className="feedback-done-mark" aria-hidden="true"><Check size={18} /></span>
-          <h2 id="feedback-heading">Thank you — that helps.</h2>
-          <p>Your rating goes straight to the team improving EC Calling Agent.</p>
+          <div>
+            <h2 id="feedback-heading">Thank you — that helps.</h2>
+            <p>Your feedback goes straight to the team improving EC Calling Agent.</p>
+          </div>
         </div>
       </section>
     );
@@ -106,86 +89,66 @@ export function FeedbackPanel({ completedCall }) {
       <form className="feedback-card" onSubmit={submit}>
         <div className="feedback-head">
           <p className="eyebrow">Your feedback</p>
-          <h2 id="feedback-heading">How was that conversation?</h2>
+          <h2 id="feedback-heading">
+            We’d genuinely value your feedback on your experience with EC Calling Agent
+          </h2>
           <p className="feedback-sub">
-            Rate the call and tell us what to improve. It takes a few seconds and shapes the next version of the agent.
+            Rate each part of the call from 1 to 5, and tell us anything else in your own words.
           </p>
         </div>
 
-        <fieldset className="feedback-scale">
-          <legend>Rate this call, 1 is poor and 5 is excellent</legend>
-          <div className="feedback-scale-row" role="radiogroup" aria-label="Call rating">
-            {SCORES.map((value) => {
-              const active = score !== null && value <= score;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={score === value}
-                  aria-label={`${value} out of 5 — ${SCORE_LABEL[value]}`}
-                  className={`feedback-star ${active ? "is-on" : ""}`}
-                  onClick={() => setScore(value)}
-                >
-                  <Star size={26} aria-hidden="true" />
-                  <span className="feedback-star-num">{value}</span>
-                </button>
-              );
-            })}
-          </div>
-          {/* Reserved height so choosing a score does not shift the form. */}
-          <p className="feedback-scale-label" aria-live="polite">
-            {score ? SCORE_LABEL[score] : " "}
-          </p>
-        </fieldset>
-
-        {/* Progressive disclosure: the detail only appears once there is a score. */}
-        {score !== null && (
-          <>
-            <fieldset className="feedback-reasons">
-              <legend>{score <= 3 ? "What went wrong?" : "What worked well?"} <span>Optional</span></legend>
-              <div className="feedback-chips">
-                {chips.map((reason) => {
-                  const selected = reasons.includes(reason);
+        <div className="feedback-criteria">
+          {CRITERIA.map((criterion) => (
+            <fieldset key={criterion.id} className="feedback-criterion">
+              <legend>{criterion.label}</legend>
+              <div className="feedback-scale-row" role="radiogroup" aria-label={criterion.label}>
+                {SCORES.map((value) => {
+                  const current = scores[criterion.id];
+                  const active = current !== undefined && value <= current;
                   return (
                     <button
-                      key={reason}
+                      key={value}
                       type="button"
-                      aria-pressed={selected}
-                      className={`feedback-chip ${selected ? "is-on" : ""}`}
-                      onClick={() => toggleReason(reason)}
+                      role="radio"
+                      aria-checked={current === value}
+                      aria-label={`${criterion.label}: ${value} out of 5 — ${SCORE_LABEL[value]}`}
+                      className={`feedback-star ${active ? "is-on" : ""}`}
+                      onClick={() => setScores((s) => ({ ...s, [criterion.id]: value }))}
                     >
-                      {reason}
+                      <Star size={20} aria-hidden="true" />
+                      <span className="feedback-star-num">{value}</span>
                     </button>
                   );
                 })}
+                {/* Reserved space so picking a score never shifts the row. */}
+                <span className="feedback-scale-label" aria-live="polite">
+                  {scores[criterion.id] ? SCORE_LABEL[scores[criterion.id]] : ""}
+                </span>
               </div>
             </fieldset>
+          ))}
+        </div>
 
-            <div className="feedback-field">
-              <label htmlFor="feedback-comment">
-                Anything else? <span>Optional</span>
-              </label>
-              <textarea
-                id="feedback-comment"
-                rows={3}
-                maxLength={600}
-                placeholder="Tell us in your own words what would have made this call better."
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-              />
-              <span className="feedback-count">{comment.length}/600</span>
-            </div>
-          </>
-        )}
+        <div className="feedback-field">
+          <label htmlFor="feedback-comment">What you liked or what could be improved</label>
+          <textarea
+            id="feedback-comment"
+            rows={3}
+            maxLength={600}
+            placeholder="Tell us in your own words what worked and what would have made this call better."
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+          />
+          <span className="feedback-count">{comment.length}/600</span>
+        </div>
 
         {error && <p className="feedback-error" role="alert">{error}</p>}
 
         <div className="feedback-actions">
-          <button type="submit" className="btn btn-primary" disabled={!score || state === "sending"}>
+          <button type="submit" className="btn btn-primary" disabled={!canSubmit || state === "sending"}>
             {state === "sending" ? "Sending…" : "Submit feedback"}
           </button>
-          {!score && <span className="feedback-hint">Pick a rating to continue</span>}
+          {!canSubmit && <span className="feedback-hint">Rate at least one of the three to continue</span>}
         </div>
       </form>
     </section>

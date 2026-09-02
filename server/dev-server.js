@@ -729,28 +729,52 @@ app.get("/api/retell/leads", async (_request, response) => {
  */
 const callFeedback = new Map();
 
+const FEEDBACK_CRITERIA = {
+  natural: "How natural the conversation felt",
+  understanding: "How well it understood you",
+  responsiveness: "How quickly and smoothly it responded",
+};
+
 app.post("/api/feedback", (request, response) => {
-  const { sessionId, score, reasons, comment, submittedAt } = request.body || {};
-  const numericScore = Number(score);
-  if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 5) {
-    response.status(400).json({ ok: false, error: "score must be an integer from 1 to 5" });
+  const { sessionId, scores, comment, submittedAt } = request.body || {};
+  const clean = {};
+  for (const key of Object.keys(FEEDBACK_CRITERIA)) {
+    const value = Number(scores?.[key]);
+    if (Number.isInteger(value) && value >= 1 && value <= 5) clean[key] = value;
+  }
+  // At least one dimension must be rated; a bare comment is not a rating.
+  if (!Object.keys(clean).length) {
+    response.status(400).json({ ok: false, error: "rate at least one criterion from 1 to 5" });
     return;
   }
+
   const entry = {
     sessionId: String(sessionId || "").slice(0, 128),
-    score: numericScore,
-    reasons: Array.isArray(reasons) ? reasons.slice(0, 10).map((r) => String(r).slice(0, 80)) : [],
+    scores: clean,
     comment: String(comment || "").slice(0, 600),
     submittedAt: submittedAt || new Date().toISOString(),
   };
   callFeedback.set(entry.sessionId || `anon-${callFeedback.size + 1}`, entry);
-  console.log(`[feedback] ${entry.score}/5 ${entry.reasons.join(", ")} ${entry.comment ? `- "${entry.comment}"` : ""}`);
+  console.log(`[feedback] ${Object.entries(clean).map(([k, v]) => `${k} ${v}/5`).join(", ")}${entry.comment ? ` - "${entry.comment}"` : ""}`);
 
-  // Answer the browser immediately - the caller should not wait on Google.
+  // Answer the browser immediately - the caller should not wait on SMTP.
   response.json({ ok: true });
   emailFeedback(entry).catch((error) => {
     console.error("[feedback] email failed:", error.message);
   });
+});
+
+/** Aggregate feedback, averaged per criterion. */
+app.get("/api/feedback", (_request, response) => {
+  const all = [...callFeedback.values()];
+  const averages = {};
+  for (const key of Object.keys(FEEDBACK_CRITERIA)) {
+    const rated = all.map((f) => f.scores?.[key]).filter((v) => typeof v === "number");
+    averages[key] = rated.length
+      ? Math.round((rated.reduce((sum, v) => sum + v, 0) / rated.length) * 10) / 10
+      : null;
+  }
+  response.json({ ok: true, count: all.length, averages, feedback: all });
 });
 
 /**
@@ -796,15 +820,20 @@ async function emailFeedback(entry) {
   }
 
   const who = caller.name || "Unknown caller";
-  const verdict = SCORE_WORD[entry.score] || "";
-  // The subject carries the score and the caller, so the inbox is triageable
-  // without opening anything.
-  const subject = `EC Calling Agent feedback — ${entry.score}/5 from ${who}`;
+  const rated = Object.entries(entry.scores || {});
+  const average = rated.length
+    ? Math.round((rated.reduce((sum, [, v]) => sum + v, 0) / rated.length) * 10) / 10
+    : "—";
+  // The subject carries the average and the caller, so the inbox is
+  // triageable without opening anything.
+  const subject = `EC Calling Agent feedback — ${average}/5 from ${who}`;
 
   const lines = [
-    `Rating: ${entry.score}/5${verdict ? ` (${verdict})` : ""}`,
-    entry.reasons.length ? `What they flagged: ${entry.reasons.join(", ")}` : "",
-    entry.comment ? `In their words: "${entry.comment}"` : "",
+    "RATINGS",
+    ...rated.map(([key, value]) => `${FEEDBACK_CRITERIA[key] || key}: ${value}/5 (${SCORE_WORD[value] || ""})`),
+    `Average: ${average}/5`,
+    "",
+    entry.comment ? `WHAT THEY LIKED / WHAT COULD BE IMPROVED\n${entry.comment}` : "",
     "",
     "CALLER",
     `Name: ${caller.name || "—"}`,
