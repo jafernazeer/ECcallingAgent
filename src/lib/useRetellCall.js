@@ -179,11 +179,12 @@ export function useRetellCall() {
 
     // Read the merged lead straight from the server's in-memory store.
     pollLead(sessionId, (fields) => {
-      setLead(fields);
-      writeStored(STORAGE_KEYS.lead, fields);
+      const stamped = { ...fields, call_id: fields.call_id || sessionId };
+      setLead(stamped);
+      writeStored(STORAGE_KEYS.lead, stamped);
       setCompletedCall((current) => {
         if (!current) return current;
-        const merged = { ...current, lead: fields };
+        const merged = { ...current, lead: stamped };
         writeStored(STORAGE_KEYS.completedCall, merged);
         return merged;
       });

@@ -394,9 +394,20 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
     const combined = lead ? [lead, ...retell.leads] : retell.leads;
     const seen = new Set();
     return combined.filter((entry, index) => {
-      const key = entry?.call_id || `row-${index}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
+      // The pinned lead and the server's copy of the same call are the same
+      // person, but only one of them carries the call id - so a record is a
+      // duplicate if EITHER its id or its identity has already been seen.
+      const callId = entry?.call_id || "";
+      const identity = [entry?.customer_name, entry?.phone_number, entry?.email]
+        .filter(Boolean).join("|").toLowerCase();
+
+      if (callId && seen.has(callId)) return false;
+      if (identity && seen.has(identity)) return false;
+      if (!callId && !identity && seen.has(`row-${index}`)) return false;
+
+      if (callId) seen.add(callId);
+      if (identity) seen.add(identity);
+      if (!callId && !identity) seen.add(`row-${index}`);
       return true;
     });
   }, [lead, retell.leads]);
