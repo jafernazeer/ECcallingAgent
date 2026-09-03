@@ -2932,3 +2932,77 @@ button.crm-row.is-selected { background: rgba(56, 201, 134, 0.08); }
   .feedback-criteria .feedback-star { flex: 1; min-width: 44px; min-height: 48px; }
   .feedback-criteria .feedback-scale-label { flex-basis: 100%; margin: 2px 0 0; }
 }
+
+/* ============================================================
+   Rating scale — red at 1 through to green at 5
+   Colour is a second signal only: every point still shows its
+   number and its word, so the scale reads without colour.
+   ============================================================ */
+
+/* Hover hint only - the selected colour is applied from the component, where
+   the value lives. */
+.feedback-star[data-score="1"]:hover { border-color: rgba(229, 72, 77, 0.4); color: #ff8a8e; }
+.feedback-star[data-score="2"]:hover { border-color: rgba(247, 107, 21, 0.4); color: #ffa863; }
+.feedback-star[data-score="3"]:hover { border-color: rgba(255, 197, 61, 0.4); color: #ffd873; }
+.feedback-star[data-score="4"]:hover { border-color: rgba(148, 206, 91, 0.4); color: #bde88a; }
+.feedback-star[data-score="5"]:hover { border-color: rgba(56, 201, 134, 0.4); color: #5fe0a5; }
+
+/* The verdict word takes the same colour, so the meaning is not carried by
+   the swatch alone. */
+.feedback-scale-label { color: #cfccd6; }
+
+/* ============================================================
+   Post-feedback notice above the dashboard
+   ============================================================ */
+
+.crm-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(56, 201, 134, 0.3);
+  border-radius: 14px;
+  background: rgba(56, 201, 134, 0.1);
+}
+.crm-notice p {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #e8e6ec;
+}
+.crm-notice-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(56, 201, 134, 0.2);
+  color: #38c986;
+}
+.crm-notice-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px 0 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #a09da8;
+  cursor: pointer;
+}
+.crm-notice-close:hover { background: rgba(255, 255, 255, 0.07); color: #f7f5f2; }
+.crm-notice-close:focus-visible { outline: 2px solid #38c986; outline-offset: 2px; }
+
+@media (max-width: 600px) {
+  .crm-notice { margin: 0 0 14px; padding: 13px 14px; border-radius: 12px; }
+  .crm-notice p { font-size: 13.5px; }
+  /* Keep the dismiss control a real tap target. */
+  .crm-notice-close { width: 44px; height: 44px; margin: -6px -10px 0 0; }
+}

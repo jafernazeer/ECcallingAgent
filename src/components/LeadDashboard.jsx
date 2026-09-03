@@ -9,6 +9,8 @@ import {
   Search,
   UsersRound,
   ChevronLeft,
+  Check,
+  X,
 } from "lucide-react";
 
 const NAV = [
@@ -373,7 +375,7 @@ function EmailTab() {
   );
 }
 
-export function LeadDashboard({ lead, transcript = [], callActive, completedCall }) {
+export function LeadDashboard({ lead, transcript = [], callActive, completedCall, notice, onDismissNotice }) {
   const [activeNav, setActiveNav] = useState("leads");
   const retell = useRetellData();
 
@@ -431,6 +433,16 @@ export function LeadDashboard({ lead, transcript = [], callActive, completedCall
             and the summary it wrote.
           </p>
         </div>
+
+        {notice && (
+          <div className="crm-notice" role="status">
+            <span className="crm-notice-mark" aria-hidden="true"><Check size={16} /></span>
+            <p>{notice}</p>
+            <button type="button" className="crm-notice-close" onClick={onDismissNotice} aria-label="Dismiss">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        )}
 
         <div className="crm-device">
           <div className="crm-device-frame">

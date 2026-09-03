@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { EthikAqionHero, ExperienceNotes, GridBackground, MotionDecoration } from "./components/Hero.jsx";
 import { PhoneMockup } from "./components/PhoneMockup.jsx";
 import { LeadDashboard } from "./components/LeadDashboard.jsx";
@@ -6,9 +6,14 @@ import { EmailRecipients } from "./components/EmailRecipients.jsx";
 import { FeedbackPanel } from "./components/FeedbackPanel.jsx";
 import { useRetellCall } from "./lib/useRetellCall.js";
 
+const FEEDBACK_NOTICE =
+  "Thank you for submitting your feedback. Please feel free to explore the Voice CRM below — it holds the lead details EC Calling Agent captured on your call.";
+
 export default function App() {
   const call = useRetellCall();
   const resultsRef = useRef(null);
+  const dashboardRef = useRef(null);
+  const [feedbackDone, setFeedbackDone] = useState(false);
   // The completed call is restored from storage on mount, so without this the
   // scroll below fired on every reload and dropped the visitor into the leads
   // section instead of the phone they came to try.
@@ -50,15 +55,29 @@ export default function App() {
         </section>
 
         <div className="content-shell">
-          <LeadDashboard
+          <div ref={dashboardRef}>
+            <LeadDashboard
+              notice={feedbackDone ? FEEDBACK_NOTICE : null}
+              onDismissNotice={() => setFeedbackDone(false)}
             lead={call.lead}
             transcript={call.transcript}
             callActive={call.isActive}
             completedCall={call.completedCall}
-          />
+            />
+          </div>
 
           <div ref={resultsRef}>
-            <FeedbackPanel completedCall={call.completedCall} />
+            <FeedbackPanel
+              completedCall={call.completedCall}
+              onSubmitted={() => {
+                setFeedbackDone(true);
+                const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+                dashboardRef.current?.scrollIntoView({
+                  behavior: reduced ? "auto" : "smooth",
+                  block: "start",
+                });
+              }}
+            />
           </div>
 
           <EmailRecipients
